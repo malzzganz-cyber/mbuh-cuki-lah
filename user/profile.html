@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Profil — Malzz Chat</title>
+<link rel="manifest" href="./manifest.json" />
+<meta name="theme-color" content="#6c5ce7" />
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body data-page="profile">
+<div class="app-shell">
+  <div class="topbar glass">
+    <button class="icon-btn ripple" onclick="history.back()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <h1 id="pageTitle">Profil</h1>
+  </div>
+  <div class="content">
+    <div class="profile-banner" id="banner">
+      <img id="bannerImg" class="hidden" />
+      <img id="avatarImg" class="profile-avatar" />
+    </div>
+    <div class="flex-between">
+      <div>
+        <div class="profile-name" id="pName">-</div>
+        <div class="profile-username" id="pUsername">-</div>
+      </div>
+      <div id="actionArea"></div>
+    </div>
+    <div class="profile-status-pill" id="pStatus">Hai!</div>
+    <p class="profile-bio" id="pBio"></p>
+    <div id="ownActions" class="hidden">
+      <button class="btn secondary ripple" id="editProfileBtn">Edit Profil</button>
+      <button class="btn outline ripple mt-8" id="changePhotoBtn" style="margin-top:10px;">Ubah Foto & Banner</button>
+    </div>
+    <input type="file" id="avatarInput" accept="image/*" class="hidden" />
+    <input type="file" id="bannerInput" accept="image/*" class="hidden" />
+  </div>
+</div>
+
+<script type="module">
+import { requireAuth, renderBottomNav, avatarOrFallback, uploadMedia, updateDoc, userDocRef,
+  toast, openSheet, blockUser, unblockUser, reportContent, ensurePrivateChat, doc, getDoc, db } from "./app.js";
+
+const { user, profile } = await requireAuth();
+renderBottomNav("profile");
+
+const params = new URLSearchParams(location.search);
+const targetUid = params.get("uid") || user.uid;
+const isOwn = targetUid === user.uid;
+
+async function render() {
+  const snap = isOwn ? { data: () => profile } : await getDoc(doc(db, "users", targetUid));
+  const u = snap.data();
+  document.getElementById("pageTitle").textContent = isOwn ? "Profil Saya" : u.name;
+  document.getElementById("avatarImg").src = avatarOrFallback(u.photoURL, u.name);
+  if (u.bannerURL) { document.getElementById("bannerImg").src = u.bannerURL; document.getElementById("bannerImg").classList.remove("hidden"); }
+  document.getElementById("pName").textContent = u.name;
+  document.getElementById("pUsername").textContent = "@" + u.username + (u.verified ? " ✓" : "");
+  document.getElementById("pStatus").textContent = u.status || "-";
+  document.getElementById("pBio").textContent = u.bio || "Belum ada bio.";
+
+  if (isOwn) {
+    document.getElementById("ownActions").classList.remove("hidden");
+  } else {
+    const isBlocked = (profile.blockedUsers || []).includes(targetUid);
+    document.getElementById("actionArea").innerHTML = `
+      <button class="btn secondary ripple" id="msgBtn" style="width:auto;padding:10px 18px;">Chat</button>
+    `;
+    document.getElementById("msgBtn").addEventListener("click", async () => {
+      const chatId = await ensurePrivateChat(user.uid, targetUid);
+      window.location.href = `./chat.html?type=private&id=${chatId}&peer=${targetUid}`;
+    });
+    const menuBtn = document.createElement("button");
+    menuBtn.className = "btn outline ripple mt-8";
+    menuBtn.textContent = isBlocked ? "Buka Blokir" : "Blokir / Laporkan";
+    menuBtn.addEventListener("click", async () => {
+      if (isBlocked) { await unblockUser(user.uid, targetUid); toast("Blokir dibuka", "success"); return render(); }
+      const overlay = openSheet(`
+        <h3 style="margin-top:0;">Aksi Pengguna</h3>
+        <button class="btn danger ripple" id="blockBtn">Blokir Pengguna</button>
+        <button class="btn outline ripple mt-8" id="reportBtn" style="margin-top:10px;">Laporkan Pengguna</button>
+      `, { center: true });
+      overlay.querySelector("#blockBtn").addEventListener("click", async () => {
+        await blockUser(user.uid, targetUid); toast("Pengguna diblokir", "success"); overlay.remove(); render();
+      });
+      overlay.querySelector("#reportBtn").addEventListener("click", async () => {
+        const reason = prompt("Alasan laporan:");
+        if (!reason) return;
+        await reportContent({ reporterId: user.uid, targetType: "user", targetId: targetUid, reason });
+        toast("Laporan terkirim", "success"); overlay.remove();
+      });
+    });
+    document.getElementById("actionArea").appendChild(menuBtn);
+  }
+}
+render();
+
+if (isOwn) {
+  document.getElementById("editProfileBtn").addEventListener("click", () => {
+    const overlay = openSheet(`
+      <h3 style="margin-top:0;">Edit Profil</h3>
+      <div class="field"><label>Nama</label><input id="eName" value="${profile.name || ""}" /></div>
+      <div class="field"><label>Username</label><input id="eUsername" value="${profile.username || ""}" /></div>
+      <div class="field"><label>Status</label><input id="eStatus" value="${profile.status || ""}" /></div>
+      <div class="field"><label>Bio</label><textarea id="eBio" rows="3">${profile.bio || ""}</textarea></div>
+      <button class="btn ripple" id="saveProfileBtn">Simpan</button>
+    `, { center: true });
+    overlay.querySelector("#saveProfileBtn").addEventListener("click", async () => {
+      await updateDoc(userDocRef(user.uid), {
+        name: overlay.querySelector("#eName").value.trim(),
+        username: overlay.querySelector("#eUsername").value.trim().toLowerCase(),
+        status: overlay.querySelector("#eStatus").value.trim(),
+        bio: overlay.querySelector("#eBio").value.trim(),
+      });
+      toast("Profil diperbarui", "success");
+      overlay.remove();
+      location.reload();
+    });
+  });
+
+  document.getElementById("changePhotoBtn").addEventListener("click", () => {
+    const overlay = openSheet(`
+      <h3 style="margin-top:0;">Ubah Foto</h3>
+      <button class="btn secondary ripple" id="pickAvatar">Ganti Foto Profil</button>
+      <button class="btn secondary ripple mt-8" id="pickBanner" style="margin-top:10px;">Ganti Banner</button>
+    `, { center: true });
+    overlay.querySelector("#pickAvatar").addEventListener("click", () => document.getElementById("avatarInput").click());
+    overlay.querySelector("#pickBanner").addEventListener("click", () => document.getElementById("bannerInput").click());
+  });
+
+  document.getElementById("avatarInput").addEventListener("change", async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    toast("Mengunggah foto...");
+    const url = await uploadMedia(file, "avatars", user.uid);
+    await updateDoc(userDocRef(user.uid), { photoURL: url });
+    toast("Foto profil diperbarui", "success"); location.reload();
+  });
+  document.getElementById("bannerInput").addEventListener("change", async (e) => {
+    const file = e.target.files[0]; if (!file) return;
+    toast("Mengunggah banner...");
+    const url = await uploadMedia(file, "banners", user.uid);
+    await updateDoc(userDocRef(user.uid), { bannerURL: url });
+    toast("Banner diperbarui", "success"); location.reload();
+  });
+}
+</script>
+</body>
+</html>
