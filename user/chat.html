@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Chat — Malzz Chat</title>
+<link rel="manifest" href="./manifest.json" />
+<meta name="theme-color" content="#6c5ce7" />
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body data-page="chat">
+<div class="app-shell" style="height:100vh;">
+  <div class="chat-header glass">
+    <button class="icon-btn ripple" onclick="window.location.href='./index.html'">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <div class="peer" id="peerInfo">
+      <img src="" id="peerAvatar" />
+      <div>
+        <div class="name" id="peerName">Memuat...</div>
+        <div class="status" id="peerStatus"></div>
+      </div>
+    </div>
+    <button class="icon-btn ripple" id="searchMsgBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    </button>
+    <button class="icon-btn ripple" id="menuBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="5" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="12" cy="19" r="1.2"/></svg>
+    </button>
+  </div>
+
+  <div class="pinned-banner hidden" id="pinnedBanner">
+    📌 <span id="pinnedText"></span>
+  </div>
+  <div class="hidden" id="searchBar" style="padding:8px 16px;">
+    <input type="text" id="searchMsgInput" placeholder="Cari pesan di chat ini..." style="width:100%;padding:10px 14px;border-radius:16px;border:1px solid var(--border);background:var(--bg-elevated);color:var(--text);outline:none;" />
+  </div>
+
+  <div class="messages" id="messages">
+    <button class="btn secondary ripple hidden" id="loadMoreBtn" style="width:auto;margin:8px auto;padding:8px 16px;">Muat pesan lama</button>
+  </div>
+  <div class="typing-indicator hidden" id="typingIndicator"><span></span><span></span><span></span></div>
+
+  <div id="replyPreview" class="hidden" style="padding:8px 16px;display:flex;align-items:center;gap:10px;background:var(--bg-elevated);">
+    <div style="flex:1;font-size:12.5px;border-left:3px solid var(--accent);padding-left:8px;" id="replyPreviewText"></div>
+    <button class="icon-btn ripple" id="cancelReplyBtn" style="width:30px;height:30px;">✕</button>
+  </div>
+
+  <div class="composer">
+    <button class="icon-btn ripple" id="attachBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.4 11.1l-8.4 8.4a5 5 0 01-7.1-7.1l8.4-8.4a3.5 3.5 0 015 5l-7.8 7.8a2 2 0 01-2.8-2.8l7.1-7.1"/></svg>
+    </button>
+    <input type="text" id="msgInput" placeholder="Tulis pesan..." autocomplete="off" />
+    <button class="icon-btn ripple" id="voiceBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0014 0M12 19v3"/></svg>
+    </button>
+    <button class="icon-btn ripple send-btn" id="sendBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"/></svg>
+    </button>
+  </div>
+  <input type="file" id="fileInput" class="hidden" />
+</div>
+
+<script type="module">
+import {
+  requireAuth, avatarOrFallback, fmtTime, fmtLastSeen, toast, openSheet, copyText,
+  db, doc, getDoc, updateDoc, onSnapshot, collection, query, orderBy, limit, startAfter, getDocs,
+  sendMessage, setTyping, toggleReaction, markSeen, editMessage, deleteForMe, deleteForEveryone,
+  pinMessage, unpinMessage, uploadMedia, addDoc, serverTimestamp,
+} from "./app.js";
+
+const { user, profile } = await requireAuth();
+const params = new URLSearchParams(location.search);
+const chatType = params.get("type") || "private";
+const chatId = params.get("id");
+const peerUid = params.get("peer");
+
+if (!chatId) window.location.replace("./index.html");
+
+const threadCol = chatType === "group" ? "groups" : "privateChats";
+const messagesColRef = collection(db, threadCol, chatId, chatType === "group" ? "messages" : "messages");
+const threadRef = doc(db, threadCol, chatId);
+
+let replyTarget = null;
+let isGroupAdmin = false;
+let peerData = null;
+let threadData = null;
+
+// -------- HEADER --------
+async function loadHeader() {
+  if (chatType === "private") {
+    const snap = await getDoc(doc(db, "users", peerUid));
+    peerData = snap.data();
+    document.getElementById("peerAvatar").src = avatarOrFallback(peerData.photoURL, peerData.name);
+    document.getElementById("peerName").textContent = peerData.name;
+    onSnapshot(doc(db, "users", peerUid), (s) => {
+      const u = s.data();
+      document.getElementById("peerStatus").textContent = fmtLastSeen(u.lastSeen, u.online);
+    });
+    document.getElementById("peerInfo").addEventListener("click", () => window.location.href = `./profile.html?uid=${peerUid}`);
+  } else {
+    const snap = await getDoc(threadRef);
+    const g = snap.data();
+    isGroupAdmin = (g.admins || []).includes(user.uid);
+    document.getElementById("peerAvatar").src = avatarOrFallback(g.photoURL, g.name);
+    document.getElementById("peerName").textContent = g.name;
+    document.getElementById("peerStatus").textContent = `${(g.members || []).length} anggota`;
+    document.getElementById("peerInfo").addEventListener("click", openGroupInfo);
+  }
+}
+await loadHeader();
+
+// -------- THREAD LISTENER (typing, pinned) --------
+onSnapshot(threadRef, (snap) => {
+  threadData = snap.data();
+  if (chatType === "private") {
+    const otherTyping = threadData.typing && threadData.typing[peerUid];
+    document.getElementById("typingIndicator").classList.toggle("hidden", !otherTyping);
+  }
+  const pinnedId = threadData.pinnedMessageId;
+  const banner = document.getElementById("pinnedBanner");
+  if (pinnedId) {
+    banner.classList.remove("hidden");
+    getDoc(doc(messagesColRef, pinnedId)).then((s) => {
+      document.getElementById("pinnedText").textContent = (s.data()?.text || "[media]").slice(0, 60);
+    });
+  } else banner.classList.add("hidden");
+});
+document.getElementById("pinnedBanner").addEventListener("click", async () => {
+  const el = document.querySelector(`[data-mid="${threadData.pinnedMessageId}"]`);
+  el?.scrollIntoView({ behavior: "smooth", block: "center" });
+});
+
+// -------- MESSAGES --------
+const messagesEl = document.getElementById("messages");
+let unsubMain = null;
+let oldestDoc = null;
+const PAGE_SIZE = 30;
+
+function bubbleHTML(id, m) {
+  const isMe = m.senderId === user.uid;
+  const deletedForMe = (m.deletedFor || []).includes(user.uid);
+  if (deletedForMe) return "";
+  if (m.deletedForEveryone) {
+    return `<div class="msg-row ${isMe ? "me" : ""} deleted" data-mid="${id}"><div class="bubble">Pesan ini telah dihapus</div></div>`;
+  }
+  const reactions = Object.values(m.reactions || {});
+  const reactionHTML = reactions.length ? `<div class="reactions">${reactions.slice(0, 3).join("")}</div>` : "";
+  let mediaHTML = "";
+  if (m.type === "image") mediaHTML = `<div class="media"><img src="${m.mediaURL}" /></div>`;
+  else if (m.type === "video") mediaHTML = `<div class="media"><video src="${m.mediaURL}" controls></video></div>`;
+  else if (m.type === "voice") mediaHTML = `<div class="media"><audio src="${m.mediaURL}" controls style="width:200px;"></audio></div>`;
+  else if (m.type === "doc") mediaHTML = `<div class="media"><a href="${m.mediaURL}" target="_blank" style="color:inherit;">📄 Dokumen</a></div>`;
+  const seenTick = isMe ? ((m.seenBy || []).length > 1 ? "✓✓" : (m.deliveredTo || []).length > 1 ? "✓✓" : "✓") : "";
+  return `<div class="msg-row ${isMe ? "me" : ""}" data-mid="${id}">
+    <div class="bubble">
+      ${m.replyTo ? `<div class="reply-ref">${m.replyTo.text || "[media]"}</div>` : ""}
+      ${mediaHTML}
+      ${m.text ? `<div>${escapeHTML(m.text)}</div>` : ""}
+      <div class="meta-row">${m.edited ? '<span class="edited-tag">diedit</span>' : ""}<span>${fmtTime(m.createdAt)}</span><span>${seenTick}</span></div>
+      ${reactionHTML}
+    </div>
+  </div>`;
+}
+function escapeHTML(s) { const d = document.createElement("div"); d.textContent = s; return d.innerHTML; }
+
+function attachRowEvents() {
+  messagesEl.querySelectorAll(".msg-row").forEach((row) => {
+    if (row.dataset.bound) return;
+    row.dataset.bound = "1";
+    let pressTimer;
+    row.addEventListener("touchstart", () => { pressTimer = setTimeout(() => openMsgMenu(row), 450); });
+    row.addEventListener("touchend", () => clearTimeout(pressTimer));
+    row.addEventListener("contextmenu", (e) => { e.preventDefault(); openMsgMenu(row); });
+    row.addEventListener("dblclick", () => quickReact(row));
+    const bubble = row.querySelector(".bubble");
+    if (bubble) bubble.addEventListener("click", (e) => { if (e.detail === 2) return; });
+    // seen tracking
+    markSeen(doc(messagesColRef, row.dataset.mid), user.uid);
+  });
+}
+
+async function quickReact(row) {
+  await toggleReaction(doc(messagesColRef, row.dataset.mid), user.uid, "❤️");
+}
+
+function openMsgMenu(row) {
+  const mid = row.dataset.mid;
+  const isMe = row.classList.contains("me");
+  const overlay = openSheet(`
+    <div class="reaction-picker">${["❤️","😂","😮","😢","👍","🔥"].map((e) => `<span data-emoji="${e}">${e}</span>`).join("")}</div>
+    <div class="context-menu" style="position:static;box-shadow:none;width:100%;">
+      <button data-act="reply">↩️ Balas</button>
+      <button data-act="copy">📋 Salin</button>
+      <button data-act="forward">➡️ Teruskan</button>
+      <button data-act="pin">📌 Sematkan / Lepas</button>
+      ${isMe ? '<button data-act="edit">✏️ Edit</button>' : ""}
+      ${isMe ? '<button class="danger" data-act="delete-everyone">🗑️ Hapus untuk Semua</button>' : ""}
+      <button class="danger" data-act="delete-me">🗑️ Hapus untuk Saya</button>
+    </div>
+  `, { center: true });
+
+  overlay.querySelectorAll("[data-emoji]").forEach((el) => {
+    el.addEventListener("click", async () => { await toggleReaction(doc(messagesColRef, mid), user.uid, el.dataset.emoji); overlay.remove(); });
+  });
+  overlay.querySelectorAll("[data-act]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const act = btn.dataset.act;
+      const snap = await getDoc(doc(messagesColRef, mid));
+      const m = snap.data();
+      overlay.remove();
+      if (act === "reply") { replyTarget = { id: mid, text: m.text || "[media]" }; showReplyPreview(); }
+      if (act === "copy") copyText(m.text || "");
+      if (act === "delete-me") await deleteForMe(doc(messagesColRef, mid), user.uid);
+      if (act === "delete-everyone") await deleteForEveryone(doc(messagesColRef, mid));
+      if (act === "pin") {
+        if (threadData.pinnedMessageId === mid) await unpinMessage(threadRef);
+        else await pinMessage(threadRef, mid);
+      }
+      if (act === "edit") {
+        const newText = prompt("Edit pesan:", m.text);
+        if (newText != null) await editMessage(doc(messagesColRef, mid), newText);
+      }
+      if (act === "forward") toast("Pilih chat tujuan dari halaman utama untuk meneruskan (salin teks terlebih dahulu).", "info");
+    });
+  });
+}
+
+function showReplyPreview() {
+  const el = document.getElementById("replyPreview");
+  el.classList.remove("hidden");
+  document.getElementById("replyPreviewText").textContent = replyTarget.text;
+}
+document.getElementById("cancelReplyBtn").addEventListener("click", () => {
+  replyTarget = null;
+  document.getElementById("replyPreview").classList.add("hidden");
+});
+
+function subscribeMessages() {
+  const q = query(messagesColRef, orderBy("createdAt", "desc"), limit(PAGE_SIZE));
+  unsubMain = onSnapshot(q, (snap) => {
+    const docs = snap.docs.slice().reverse();
+    if (snap.size > 0) oldestDoc = snap.docs[snap.docs.length - 1];
+    const wasAtBottom = messagesEl.scrollTop + messagesEl.clientHeight >= messagesEl.scrollHeight - 60;
+    const loadMoreBtn = document.getElementById("loadMoreBtn");
+    messagesEl.innerHTML = "";
+    messagesEl.appendChild(loadMoreBtn);
+    loadMoreBtn.classList.remove("hidden");
+    messagesEl.insertAdjacentHTML("beforeend", docs.map((d) => bubbleHTML(d.id, d.data())).join(""));
+    attachRowEvents();
+    if (wasAtBottom || messagesEl.dataset.first !== "done") {
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+      messagesEl.dataset.first = "done";
+    }
+  });
+}
+subscribeMessages();
+
+document.getElementById("loadMoreBtn").addEventListener("click", async () => {
+  if (!oldestDoc) return;
+  const q = query(messagesColRef, orderBy("createdAt", "desc"), startAfter(oldestDoc), limit(PAGE_SIZE));
+  const snap = await getDocs(q);
+  if (snap.empty) { document.getElementById("loadMoreBtn").textContent = "Tidak ada pesan lama lagi"; return; }
+  oldestDoc = snap.docs[snap.docs.length - 1];
+  const docs = snap.docs.slice().reverse();
+  const html = docs.map((d) => bubbleHTML(d.id, d.data())).join("");
+  document.getElementById("loadMoreBtn").insertAdjacentHTML("afterend", html);
+  attachRowEvents();
+});
+
+// -------- SEARCH IN CHAT --------
+document.getElementById("searchMsgBtn").addEventListener("click", () => {
+  document.getElementById("searchBar").classList.toggle("hidden");
+});
+document.getElementById("searchMsgInput").addEventListener("input", (e) => {
+  const term = e.target.value.trim().toLowerCase();
+  messagesEl.querySelectorAll(".msg-row").forEach((row) => {
+    const text = row.textContent.toLowerCase();
+    row.style.opacity = !term || text.includes(term) ? "1" : ".15";
+  });
+});
+
+// -------- SEND --------
+const msgInput = document.getElementById("msgInput");
+async function doSend() {
+  const text = msgInput.value.trim();
+  if (!text) return;
+  msgInput.value = "";
+  await sendMessage({
+    threadRef, messagesCol: messagesColRef, senderId: user.uid, type: "text", text,
+    replyTo: replyTarget,
+  });
+  replyTarget = null;
+  document.getElementById("replyPreview").classList.add("hidden");
+  setTyping(threadRef, user.uid, false);
+}
+document.getElementById("sendBtn").addEventListener("click", doSend);
+msgInput.addEventListener("keydown", (e) => { if (e.key === "Enter") doSend(); });
+
+let typingTimeout;
+msgInput.addEventListener("input", () => {
+  setTyping(threadRef, user.uid, true);
+  clearTimeout(typingTimeout);
+  typingTimeout = setTimeout(() => setTyping(threadRef, user.uid, false), 2000);
+});
+
+// -------- ATTACHMENTS --------
+document.getElementById("attachBtn").addEventListener("click", () => {
+  const overlay = openSheet(`
+    <div class="attach-menu">
+      <button data-kind="image"><div class="ic" style="background:#a29bfe;">🖼️</div>Foto</button>
+      <button data-kind="video"><div class="ic" style="background:#ff7675;">🎬</div>Video</button>
+      <button data-kind="doc"><div class="ic" style="background:#00cec9;">📄</div>Dokumen</button>
+    </div>
+  `);
+  overlay.querySelectorAll("[data-kind]").forEach((btn) => {
+    btn.addEventListener("click", () => { overlay.remove(); pickFile(btn.dataset.kind); });
+  });
+});
+function pickFile(kind) {
+  const input = document.getElementById("fileInput");
+  input.value = "";
+  input.accept = kind === "image" ? "image/*" : kind === "video" ? "video/*" : "*/*";
+  input.onchange = async () => {
+    const file = input.files[0]; if (!file) return;
+    const folder = kind === "image" ? "chatImages" : kind === "video" ? "chatVideos" : "documents";
+    toast("Mengunggah media...");
+    try {
+      const url = await uploadMedia(file, folder, chatId);
+      await sendMessage({ threadRef, messagesCol: messagesColRef, senderId: user.uid, type: kind, mediaURL: url, replyTo: replyTarget });
+      replyTarget = null;
+    } catch (e) { toast("Gagal mengunggah file.", "error"); }
+  };
+  input.click();
+}
+
+// -------- VOICE NOTE --------
+let mediaRecorder, chunks = [];
+document.getElementById("voiceBtn").addEventListener("click", async () => {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+    return;
+  }
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    chunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+    mediaRecorder.onstop = async () => {
+      const blob = new Blob(chunks, { type: "audio/webm" });
+      const file = new File([blob], `voice_${Date.now()}.webm`, { type: "audio/webm" });
+      toast("Mengunggah voice note...");
+      const url = await uploadMedia(file, "voiceNotes", chatId);
+      await sendMessage({ threadRef, messagesCol: messagesColRef, senderId: user.uid, type: "voice", mediaURL: url });
+    };
+    mediaRecorder.start();
+    toast("Merekam... klik lagi untuk berhenti.");
+  } catch (e) {
+    toast("Izin mikrofon ditolak.", "error");
+  }
+});
+
+// -------- GROUP INFO / MODERATION --------
+async function openGroupInfo() {
+  const snap = await getDoc(threadRef);
+  const g = snap.data();
+  const membersHTML = await Promise.all(g.members.map(async (uid) => {
+    const s = await getDoc(doc(db, "users", uid));
+    const u = s.data() || { name: "?" };
+    const role = g.admins.includes(uid) ? "Admin" : g.moderators.includes(uid) ? "Moderator" : "Anggota";
+    return `<div class="chat-row" data-member="${uid}">
+      <div class="avatar-wrap"><img src="${avatarOrFallback(u.photoURL, u.name)}"/></div>
+      <div class="meta"><div class="name">${u.name}</div><div class="small">${role}</div></div>
+      ${isGroupAdmin && uid !== user.uid ? `<button class="btn secondary ripple" style="width:auto;padding:6px 10px;" data-kick="${uid}">Keluarkan</button>` : ""}
+    </div>`;
+  }));
+  const overlay = openSheet(`
+    <h3 style="margin-top:0;">${g.name}</h3>
+    <p class="small">${g.description || ""}</p>
+    <p class="small">Kode Undangan: <strong>${g.inviteCode}</strong> <button id="copyInvite" class="btn secondary ripple" style="width:auto;padding:4px 10px;display:inline;">Salin</button></p>
+    <div class="section-title"><h2>Anggota (${g.members.length})</h2></div>
+    ${membersHTML.join("")}
+    ${isGroupAdmin ? '<button class="btn danger ripple mt-8" id="closeGroupBtn" style="margin-top:14px;">Tutup Grup</button>' : ""}
+    <button class="btn outline ripple mt-8" id="leaveGroupBtn" style="margin-top:10px;">Keluar dari Grup</button>
+  `);
+  overlay.querySelector("#copyInvite")?.addEventListener("click", () => copyText(g.inviteCode));
+  overlay.querySelectorAll("[data-kick]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const { arrayRemove } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+      await updateDoc(threadRef, { members: arrayRemove(btn.dataset.kick), admins: arrayRemove(btn.dataset.kick), moderators: arrayRemove(btn.dataset.kick) });
+      toast("Anggota dikeluarkan", "success"); overlay.remove();
+    });
+  });
+  overlay.querySelector("#closeGroupBtn")?.addEventListener("click", async () => {
+    await updateDoc(threadRef, { closed: true });
+    toast("Grup ditutup", "success"); overlay.remove(); window.location.href = "./index.html";
+  });
+  overlay.querySelector("#leaveGroupBtn")?.addEventListener("click", async () => {
+    const { arrayRemove } = await import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js");
+    await updateDoc(threadRef, { members: arrayRemove(user.uid), admins: arrayRemove(user.uid), moderators: arrayRemove(user.uid) });
+    overlay.remove(); window.location.href = "./index.html";
+  });
+}
+
+document.getElementById("menuBtn").addEventListener("click", () => {
+  if (chatType === "group") return openGroupInfo();
+  window.location.href = `./profile.html?uid=${peerUid}`;
+});
+</script>
+</body>
+</html>
