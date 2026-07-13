@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pengaturan — Malzz Chat</title>
+<link rel="manifest" href="./manifest.json" />
+<meta name="theme-color" content="#6c5ce7" />
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body data-page="settings">
+<div class="app-shell">
+  <div class="topbar glass">
+    <button class="icon-btn ripple" onclick="history.back()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <h1>Pengaturan</h1>
+  </div>
+  <div class="content">
+    <div class="section-title"><h2>Tampilan</h2></div>
+    <div class="settings-group">
+      <div class="settings-row">
+        <div class="ic" style="background:var(--accent-grad);">🌙</div>
+        <div class="label">Mode Gelap</div>
+        <label class="switch"><input type="checkbox" id="darkToggle" /><span class="track"></span></label>
+      </div>
+    </div>
+
+    <div class="section-title"><h2>Privasi</h2></div>
+    <div class="settings-group">
+      <div class="settings-row" id="blockedRow">
+        <div class="ic" style="background:#ff5c72;">🚫</div>
+        <div class="label">Pengguna Diblokir</div>
+        <span class="value" id="blockedCount">0</span>
+      </div>
+    </div>
+    <div id="blockedList" class="chat-list hidden"></div>
+
+    <div class="section-title"><h2>Akun</h2></div>
+    <div class="settings-group">
+      <div class="settings-row" id="logoutRow">
+        <div class="ic" style="background:#14162b;">🚪</div>
+        <div class="label text-danger">Keluar</div>
+      </div>
+    </div>
+
+    <p class="small center mt-8" style="margin-top:24px;">Malzz Chat v1.0 · © 2026 Malzz. All Rights Reserved.</p>
+  </div>
+</div>
+
+<script type="module">
+import { requireAuth, renderBottomNav, logout, toggleTheme, avatarOrFallback, unblockUser, toast, doc, getDoc, db } from "./app.js";
+const { user, profile } = await requireAuth();
+renderBottomNav("profile");
+
+const darkToggle = document.getElementById("darkToggle");
+darkToggle.checked = document.documentElement.getAttribute("data-theme") === "dark";
+darkToggle.addEventListener("change", () => toggleTheme());
+
+document.getElementById("logoutRow").addEventListener("click", () => {
+  if (confirm("Yakin ingin keluar?")) logout();
+});
+
+const blocked = profile.blockedUsers || [];
+document.getElementById("blockedCount").textContent = blocked.length;
+const blockedList = document.getElementById("blockedList");
+document.getElementById("blockedRow").addEventListener("click", async () => {
+  blockedList.classList.toggle("hidden");
+  if (blockedList.classList.contains("hidden") || blockedList.dataset.loaded) return;
+  blockedList.dataset.loaded = "1";
+  if (!blocked.length) { blockedList.innerHTML = '<div class="empty-state">Tidak ada pengguna yang diblokir</div>'; return; }
+  const rows = await Promise.all(blocked.map(async (uid) => {
+    const s = await getDoc(doc(db, "users", uid));
+    const u = s.data() || { name: "Pengguna" };
+    return `<div class="chat-row" data-uid="${uid}">
+      <div class="avatar-wrap"><img src="${avatarOrFallback(u.photoURL, u.name)}"/></div>
+      <div class="meta"><div class="name">${u.name}</div></div>
+      <button class="btn secondary ripple" style="width:auto;padding:8px 14px;" data-unblock="${uid}">Buka</button>
+    </div>`;
+  }));
+  blockedList.innerHTML = rows.join("");
+  blockedList.querySelectorAll("[data-unblock]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      await unblockUser(user.uid, btn.dataset.unblock);
+      toast("Blokir dibuka", "success");
+      btn.closest(".chat-row").remove();
+    });
+  });
+});
+</script>
+</body>
+</html>
