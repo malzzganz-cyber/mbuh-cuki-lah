@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Daftar — Malzz Chat</title>
+<link rel="manifest" href="./manifest.json" />
+<meta name="theme-color" content="#6c5ce7" />
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body data-page="register">
+<div class="auth-shell fade-in">
+  <div class="auth-logo">
+    <div class="logo">M</div>
+    <h1>Buat Akun</h1>
+    <p>Gabung dengan Malzz Chat dalam hitungan detik.</p>
+  </div>
+
+  <form id="registerForm">
+    <div class="field">
+      <label>Nama Lengkap</label>
+      <input type="text" id="name" required placeholder="Nama kamu" />
+    </div>
+    <div class="field">
+      <label>Username</label>
+      <input type="text" id="username" required placeholder="username_unik" pattern="[a-z0-9_]{3,20}" title="huruf kecil, angka, underscore, 3-20 karakter" />
+    </div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="email" required placeholder="nama@email.com" />
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="password" required minlength="6" placeholder="Minimal 6 karakter" />
+    </div>
+    <button class="btn ripple" type="submit" id="registerBtn"><span id="registerBtnLabel">Daftar</span></button>
+  </form>
+
+  <p class="link-row">Sudah punya akun? <a href="./login.html">Masuk</a></p>
+  <p class="small center mt-8">© 2026 Malzz. All Rights Reserved.</p>
+</div>
+
+<script type="module">
+import { registerWithEmail, toast, friendlyFirebaseError, registerServiceWorker } from "./app.js";
+registerServiceWorker();
+
+const form = document.getElementById("registerForm");
+const btn = document.getElementById("registerBtn");
+const label = document.getElementById("registerBtnLabel");
+
+form.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  btn.disabled = true;
+  label.innerHTML = '<span class="spinner"></span>';
+  try {
+    await registerWithEmail({
+      name: document.getElementById("name").value.trim(),
+      username: document.getElementById("username").value.trim().toLowerCase(),
+      email: document.getElementById("email").value.trim(),
+      password: document.getElementById("password").value,
+    });
+    toast("Akun berhasil dibuat! Cek email untuk verifikasi.", "success");
+    setTimeout(() => window.location.replace("./index.html"), 1200);
+  } catch (err) {
+    toast(err.code === "username-taken" ? err.message : friendlyFirebaseError(err), "error");
+    btn.disabled = false;
+    label.textContent = "Daftar";
+  }
+});
+</script>
+</body>
+</html>
