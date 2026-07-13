@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Malzz Chat — Admin</title>
+<style>
+/* ============================================================
+   Malzz Chat — Admin Dashboard (single-file SPA)
+   ============================================================ */
+:root {
+  --radius: 20px;
+  --radius-sm: 12px;
+  --accent: #6c5ce7;
+  --accent-2: #00cec9;
+  --accent-grad: linear-gradient(135deg, #6c5ce7 0%, #00cec9 100%);
+  --danger: #ff5c72;
+  --success: #2ecc71;
+  --warn: #ffb84d;
+  --bg: #f4f5fb;
+  --bg-elevated: #ffffff;
+  --bg-glass: rgba(255, 255, 255, 0.65);
+  --text: #14162b;
+  --text-dim: #6c6f8a;
+  --border: rgba(20, 22, 43, 0.08);
+  --shadow: 0 10px 30px rgba(30, 30, 60, 0.08);
+  --sidebar-bg: #14162b;
+  --sidebar-text: #c7c9e6;
+}
+[data-theme="dark"] {
+  --bg: #0b0f19;
+  --bg-elevated: #131826;
+  --bg-glass: rgba(19, 24, 38, 0.6);
+  --text: #eef0ff;
+  --text-dim: #9aa0c3;
+  --border: rgba(255, 255, 255, 0.08);
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  --sidebar-bg: #0a0c16;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: "Segoe UI", -apple-system, Inter, Roboto, sans-serif; background: var(--bg); color: var(--text); }
+a { text-decoration: none; color: inherit; }
+
+#loginScreen {
+  min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px;
+}
+.admin-login-card {
+  width: 100%; max-width: 380px; background: var(--bg-elevated); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 34px 28px;
+}
+.admin-login-card .logo { width: 56px; height: 56px; border-radius: 50%; background: var(--accent-grad); color: #fff; font-weight: 800; font-size: 24px; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px; }
+.admin-login-card h1 { text-align: center; font-size: 20px; margin: 0 0 4px; }
+.admin-login-card p { text-align: center; color: var(--text-dim); font-size: 12.5px; margin: 0 0 20px; }
+.field { margin-bottom: 14px; }
+.field label { display: block; font-size: 12px; color: var(--text-dim); margin-bottom: 6px; font-weight: 600; }
+.field input, .field select, .field textarea {
+  width: 100%; padding: 12px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+  background: var(--bg); color: var(--text); font-size: 14px; outline: none;
+}
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  padding: 12px 18px; border-radius: var(--radius-sm); border: none; cursor: pointer;
+  font-weight: 700; font-size: 13.5px; background: var(--accent-grad); color: #fff;
+  box-shadow: 0 8px 20px rgba(108,92,231,.3); transition: transform .15s ease;
+}
+.btn:active { transform: scale(.97); }
+.btn.block { width: 100%; }
+.btn.secondary { background: var(--bg); color: var(--text); box-shadow: none; border: 1px solid var(--border); }
+.btn.danger { background: var(--danger); box-shadow: 0 8px 20px rgba(255,92,114,.3); }
+.btn.success { background: var(--success); }
+.btn.sm { padding: 7px 12px; font-size: 12px; }
+.btn:disabled { opacity: .6; cursor: not-allowed; }
+
+#adminApp { display: none; }
+#adminApp.active { display: flex; min-height: 100vh; }
+
+.sidebar {
+  width: 240px; background: var(--sidebar-bg); color: var(--sidebar-text); flex-shrink: 0;
+  display: flex; flex-direction: column; padding: 20px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+.sidebar .brand { display: flex; align-items: center; gap: 10px; padding: 0 20px 20px; }
+.sidebar .brand .logo { width: 34px; height: 34px; border-radius: 50%; background: var(--accent-grad); display: flex; align-items: center; justify-content: center; font-weight: 800; color: #fff; }
+.sidebar .brand span { font-weight: 800; font-size: 16px; color: #fff; }
+.side-item {
+  display: flex; align-items: center; gap: 12px; padding: 12px 20px; cursor: pointer; font-size: 13.5px;
+  border-left: 3px solid transparent; transition: all .2s ease;
+}
+.side-item:hover { background: rgba(255,255,255,.05); }
+.side-item.active { background: rgba(108,92,231,.18); border-left-color: var(--accent-2); color: #fff; }
+.side-item .ic { width: 18px; text-align: center; }
+.side-item.logout { margin-top: auto; color: #ff9aa8; }
+
+.main {
+  flex: 1; min-width: 0; padding: 24px 30px 60px;
+}
+.topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+.topbar h1 { font-size: 22px; margin: 0; }
+.topbar .who { font-size: 13px; color: var(--text-dim); }
+
+.section { display: none; animation: fadeIn .3s ease both; }
+.section.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+.grid { display: grid; gap: 16px; }
+.grid.cols-4 { grid-template-columns: repeat(4, 1fr); }
+.grid.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.grid.cols-2 { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 1100px) { .grid.cols-4 { grid-template-columns: repeat(2, 1fr); } .grid.cols-3 { grid-template-columns: repeat(2, 1fr); } }
+
+.card { background: var(--bg-elevated); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px 20px; }
+.stat-card .label { font-size: 12px; color: var(--text-dim); font-weight: 600; text-transform: uppercase; letter-spacing: .4px; }
+.stat-card .value { font-size: 28px; font-weight: 800; margin-top: 6px; }
+.stat-card .ic { width: 40px; height: 40px; border-radius: 12px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; margin-bottom: 10px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th { text-align: left; padding: 10px 12px; color: var(--text-dim); font-weight: 700; font-size: 11.5px; text-transform: uppercase; letter-spacing: .3px; border-bottom: 1px solid var(--border); }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+tr:hover td { background: rgba(108,92,231,.04); }
+.avatar-sm { width: 34px; height: 34px; border-radius: 50%; object-fit: cover; }
+.pill { display: inline-flex; align-items: center; gap: 4px; padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 700; }
+.pill.role-admin { background: rgba(108,92,231,.15); color: var(--accent); }
+.pill.role-moderator { background: rgba(0,206,201,.15); color: #00a39e; }
+.pill.role-user { background: var(--border); color: var(--text-dim); }
+.pill.online { background: rgba(46,204,113,.15); color: #21a35a; }
+.pill.offline { background: var(--border); color: var(--text-dim); }
+.pill.banned { background: rgba(255,92,114,.15); color: var(--danger); }
+.pill.verified { background: rgba(255,184,77,.18); color: #c98307; }
+
+.toolbar { display: flex; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; align-items: center; }
+.toolbar input, .toolbar select { padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text); font-size: 13px; outline: none; }
+
+.pagination { display: flex; gap: 6px; margin-top: 14px; justify-content: flex-end; }
+.pagination button { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-elevated); cursor: pointer; }
+.pagination button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.overlay { position: fixed; inset: 0; background: rgba(10,12,24,.5); display: flex; align-items: center; justify-content: center; z-index: 300; }
+.modal { background: var(--bg-elevated); border-radius: var(--radius); padding: 24px; width: min(520px, 92vw); max-height: 86vh; overflow-y: auto; box-shadow: var(--shadow); }
+.modal h3 { margin-top: 0; }
+
+.toast-stack { position: fixed; top: 18px; right: 18px; z-index: 999; display: flex; flex-direction: column; gap: 8px; width: 320px; }
+.toast { padding: 12px 16px; border-radius: var(--radius-sm); background: var(--bg-elevated); box-shadow: var(--shadow); font-size: 13px; border-left: 4px solid var(--accent); }
+.toast.error { border-left-color: var(--danger); }
+.toast.success { border-left-color: var(--success); }
+
+.chart-wrap { background: var(--bg-elevated); border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px; }
+.chart-wrap h4 { margin: 0 0 10px; font-size: 13px; color: var(--text-dim); text-transform: uppercase; letter-spacing: .3px; }
+canvas { width: 100% !important; height: 220px !important; }
+
+.empty { text-align: center; padding: 40px; color: var(--text-dim); }
+.small { font-size: 12px; color: var(--text-dim); }
+.mt-8 { margin-top: 8px; }
+.hidden { display: none !important; }
+.flex-between { display: flex; align-items: center; justify-content: space-between; }
+.log-item { padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.log-item .time { color: var(--text-dim); font-size: 11.5px; }
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div id="loginScreen">
+  <div class="admin-login-card">
+    <div class="logo">M</div>
+    <h1>Malzz Admin</h1>
+    <p>Masuk dengan akun admin / moderator</p>
+    <form id="adminLoginForm">
+      <div class="field"><label>Email</label><input type="email" id="aEmail" required /></div>
+      <div class="field"><label>Password</label><input type="password" id="aPassword" required /></div>
+      <button type="submit" class="btn block" id="aLoginBtn">Masuk</button>
+    </form>
+    <p class="small" style="text-align:center;margin-top:14px;">© 2026 Malzz. All Rights Reserved.</p>
+  </div>
+</div>
+
+<!-- ============ ADMIN SPA ============ -->
+<div id="adminApp">
+  <aside class="sidebar">
+    <div class="brand"><div class="logo">M</div><span>Malzz Admin</span></div>
+    <div class="side-item active" data-section="dashboard"><span class="ic">📊</span> Dashboard</div>
+    <div class="side-item" data-section="users"><span class="ic">👥</span> Users</div>
+    <div class="side-item" data-section="broadcast"><span class="ic">📢</span> Broadcast</div>
+    <div class="side-item" data-section="reports"><span class="ic">🚩</span> Reports</div>
+    <div class="side-item" data-section="groups"><span class="ic">👨‍👩‍👧</span> Groups</div>
+    <div class="side-item" data-section="stories"><span class="ic">🟣</span> Stories</div>
+    <div class="side-item" data-section="chatmonitor"><span class="ic">💬</span> Chat Monitor</div>
+    <div class="side-item" data-section="notifications"><span class="ic">🔔</span> Notifications</div>
+    <div class="side-item" data-section="analytics"><span class="ic">📈</span> Analytics</div>
+    <div class="side-item" data-section="storage"><span class="ic">🗄️</span> Storage</div>
+    <div class="side-item" data-section="logs"><span class="ic">📝</span> Logs</div>
+    <div class="side-item" data-section="settings"><span class="ic">⚙️</span> Settings</div>
+    <div class="side-item logout" id="logoutItem"><span class="ic">🚪</span> Logout</div>
+  </aside>
+
+  <main class="main">
+    <div class="topbar">
+      <h1 id="sectionTitle">Dashboard</h1>
+      <div class="who">
+        <span id="whoName"></span> · <button class="btn secondary sm" id="themeBtn">🌙 Tema</button>
+      </div>
+    </div>
+
+    <!-- DASHBOARD -->
+    <section class="section active" id="sec-dashboard">
+      <div class="grid cols-4" id="statCards"></div>
+      <div class="grid cols-2 mt-8" style="margin-top:20px;">
+        <div class="chart-wrap"><h4>Grafik Harian (User Baru)</h4><canvas id="chartDaily"></canvas></div>
+        <div class="chart-wrap"><h4>Grafik Bulanan (Chat & Broadcast)</h4><canvas id="chartMonthly"></canvas></div>
+      </div>
+    </section>
+
+    <!-- USERS -->
+    <section class="section" id="sec-users">
+      <div class="toolbar">
+        <input type="text" id="userSearch" placeholder="Cari nama, username, email..." style="min-width:240px;" />
+        <select id="userRoleFilter"><option value="">Semua Role</option><option value="user">User</option><option value="moderator">Moderator</option><option value="admin">Admin</option></select>
+        <select id="userStatusFilter"><option value="">Semua Status</option><option value="banned">Banned</option><option value="online">Online</option><option value="verified">Verified</option></select>
+        <select id="userSort"><option value="createdAt_desc">Terbaru</option><option value="createdAt_asc">Terlama</option><option value="name_asc">Nama A-Z</option></select>
+      </div>
+      <div class="card">
+        <table>
+          <thead><tr><th>Foto</th><th>Nama</th><th>Username</th><th>Email</th><th>Status</th><th>Role</th><th>Online</th><th>Daftar</th><th>Aksi</th></tr></thead>
+          <tbody id="usersTbody"></tbody>
+        </table>
+      </div>
+      <div class="pagination" id="usersPagination"></div>
+    </section>
+
+    <!-- BROADCAST -->
+    <section class="section" id="sec-broadcast">
+      <div class="grid cols-2">
+        <div class="card">
+          <h3 style="margin-top:0;">Kirim Broadcast</h3>
+          <div class="field"><label>Judul</label><input id="bTitle" /></div>
+          <div class="field"><label>Isi</label><textarea id="bBody" rows="3"></textarea></div>
+          <div class="field"><label>Link (opsional)</label><input id="bLink" placeholder="https://" /></div>
+          <div class="field"><label>Prioritas</label><select id="bPriority"><option value="normal">Normal</option><option value="high">Tinggi</option><option value="urgent">Urgent</option></select></div>
+          <div class="field"><label>Target</label>
+            <select id="bTargetType">
+              <option value="all">Semua User</option>
+              <option value="role:moderator">Moderator</option>
+              <option value="role:admin">Admin</option>
+              <option value="user">User Tertentu (UID)</option>
+              <option value="group">Grup Tertentu (Group ID)</option>
+            </select>
+          </div>
+          <div class="field hidden" id="bTargetValueWrap"><label>UID / Group ID</label><input id="bTargetValue" /></div>
+          <label class="small"><input type="checkbox" id="bPinned" /> Sematkan broadcast ini</label>
+          <button class="btn block mt-8" id="bSendBtn" style="margin-top:14px;">Kirim Broadcast</button>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;">Riwayat Broadcast</h3>
+          <div id="broadcastList"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- REPORTS -->
+    <section class="section" id="sec-reports">
+      <div class="card"><table><thead><tr><th>Pelapor</th><th>Target</th><th>Alasan</th><th>Status</th><th>Tanggal</th><th>Aksi</th></tr></thead><tbody id="reportsTbody"></tbody></table></div>
+    </section>
+
+    <!-- GROUPS -->
+    <section class="section" id="sec-groups">
+      <div class="card"><table><thead><tr><th>Nama</th><th>Anggota</th><th>Status</th><th>Dibuat</th><th>Aksi</th></tr></thead><tbody id="groupsTbody"></tbody></table></div>
+    </section>
+
+    <!-- STORIES -->
+    <section class="section" id="sec-stories">
+      <div class="grid cols-4" id="storiesGrid"></div>
+    </section>
+
+    <!-- CHAT MONITOR -->
+    <section class="section" id="sec-chatmonitor">
+      <div class="toolbar"><input type="text" id="chatSearch" placeholder="Cari isi chat terakhir..." style="min-width:260px;" /></div>
+      <div class="grid cols-2">
+        <div class="card"><h3 style="margin-top:0;">Daftar Chat</h3><div id="chatListMonitor"></div></div>
+        <div class="card"><h3 style="margin-top:0;">Pesan</h3><div id="chatMessagesMonitor" class="small">Pilih chat di sebelah kiri</div></div>
+      </div>
+    </section>
+
+    <!-- NOTIFICATIONS MANAGER -->
+    <section class="section" id="sec-notifications">
+      <div class="grid cols-2">
+        <div class="card">
+          <h3 style="margin-top:0;">Notifikasi Maintenance</h3>
+          <div class="field"><label>Pesan</label><textarea id="maintMsg" rows="3"></textarea></div>
+          <button class="btn block" id="maintSendBtn">Kirim Maintenance Notice</button>
+        </div>
+        <div class="card">
+          <h3 style="margin-top:0;">Info</h3>
+          <p class="small">Gunakan menu Broadcast untuk mengirim notifikasi bertarget ke user/role/grup tertentu. Menu ini khusus untuk pengumuman sistem/maintenance ke seluruh pengguna.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ANALYTICS -->
+    <section class="section" id="sec-analytics">
+      <div class="grid cols-2" id="analyticsGrid"></div>
+    </section>
+
+    <!-- STORAGE -->
+    <section class="section" id="sec-storage">
+      <div class="toolbar">
+        <select id="storageFolder">
+          <option value="avatars">avatars</option>
+          <option value="banners">banners</option>
+          <option value="chatImages">chatImages</option>
+          <option value="chatVideos">chatVideos</option>
+          <option value="voiceNotes">voiceNotes</option>
+          <option value="documents">documents</option>
+          <option value="stories">stories</option>
+          <option value="broadcast">broadcast</option>
+          <option value="groups">groups</option>
+        </select>
+        <button class="btn secondary sm" id="storageRefreshBtn">Muat</button>
+      </div>
+      <div class="grid cols-4" id="storageGrid"></div>
+    </section>
+
+    <!-- LOGS -->
+    <section class="section" id="sec-logs">
+      <div class="card" id="logsList"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="section" id="sec-settings">
+      <div class="card" style="max-width:480px;">
+        <h3 style="margin-top:0;">Pengaturan Aplikasi</h3>
+        <label class="small"><input type="checkbox" id="maintenanceToggle" /> Mode Maintenance</label>
+        <div class="field mt-8"><label>Nama Aplikasi</label><input id="settingsAppName" /></div>
+        <button class="btn block mt-8" id="saveSettingsBtn">Simpan</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script type="module">
+// ============================================================
+// Malzz Chat — Admin (single self-contained file)
+// Firebase config + all admin logic + UI controller, all in one
+// HTML file on purpose. Fill in YOUR Firebase config below.
+// ============================================================
+import { initializeApp, getApps, getApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+import {
+  getAuth, onAuthStateChanged, signInWithEmailAndPassword, signOut,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+import {
+  getFirestore, doc, getDoc, setDoc, updateDoc, deleteDoc, collection, query, where, orderBy, limit,
+  onSnapshot, addDoc, serverTimestamp, getDocs,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import {
+  getStorage, ref as storageRef, listAll, getDownloadURL, deleteObject,
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-storage.js";
+
+// ------------------------------------------------------------
+// FIREBASE CONFIG — replace with YOUR project's values
+// (Firebase Console → Project settings → General → Your apps).
+// This must be the SAME project used by the user site (../firebase.js
+// on the user side, if you split them apart — the values must match).
+// ------------------------------------------------------------
+const firebaseConfig = {
+  apiKey: "AIzaSyD2_VAsx4e3ES9rzHoF1Q1RKMlFnUrwimg",
+  authDomain: "malzz-chat-new.firebaseapp.com",
+  projectId: "malzz-chat-new",
+  storageBucket: "malzz-chat-new.firebasestorage.app",
+  messagingSenderId: "736878338803",
+  appId: "1:736878338803:web:ab14bf0dc3dc26d0cc8d86",",
+  measurementId: "G-BBTPJ709JP",
+};
+
+const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const storage = getStorage(app);
+
+// ------------------------------------------------------------
+// THEME
+// ------------------------------------------------------------
+document.documentElement.setAttribute("data-theme", localStorage.getItem("malzz-admin-theme") || "light");
+function toggleAdminTheme() {
+  const next = document.documentElement.getAttribute("data-theme") === "light" ? "dark" : "light";
+  document.documentElement.setAttribute("data-theme", next);
+  localStorage.setItem("malzz-admin-theme", next);
+}
+
+// ------------------------------------------------------------
+// TOAST / ERRORS
+// ------------------------------------------------------------
+function toast(message, type = "info", ms = 3500) {
+  let stack = document.querySelector(".toast-stack");
+  if (!stack) { stack = document.createElement("div"); stack.className = "toast-stack"; document.body.appendChild(stack); }
+  const el = document.createElement("div");
+  el.className = `toast ${type}`;
+  el.textContent = message;
+  stack.appendChild(el);
+  setTimeout(() => el.remove(), ms);
+}
+function friendlyError(err) {
+  const map = {
+    "auth/invalid-credential": "Email atau password salah.",
+    "auth/too-many-requests": "Terlalu banyak percobaan. Coba lagi nanti.",
+    "permission-denied": "Kamu tidak punya izin admin untuk aksi ini.",
+  };
+  return map[err?.code] || err?.message || "Terjadi kesalahan.";
+}
+
+// ------------------------------------------------------------
+// ADMIN AUTH GUARD
+// ------------------------------------------------------------
+let currentAdmin = null;
+let currentAdminProfile = null;
+
+function watchAdminAuth({ onReady, onLoggedOut }) {
+  onAuthStateChanged(auth, async (user) => {
+    if (!user) { onLoggedOut(); return; }
+    const snap = await getDoc(doc(db, "users", user.uid));
+    const profile = snap.exists() ? snap.data() : null;
+    if (!profile || (profile.role !== "admin" && profile.role !== "moderator")) {
+      await signOut(auth);
+      toast("Akun ini tidak memiliki akses admin.", "error");
+      onLoggedOut();
+      return;
+    }
+    currentAdmin = user;
+    currentAdminProfile = profile;
+    onReady(user, profile);
+  });
+}
+async function adminLogin(email, password) {
+  return signInWithEmailAndPassword(auth, email, password);
+}
+async function adminLogout() {
+  await signOut(auth);
+}
+
+// ------------------------------------------------------------
+// LOGS
+// ------------------------------------------------------------
+async function writeLog(action, details = "") {
+  await addDoc(collection(db, "logs"), {
+    adminId: currentAdmin?.uid || "system",
+    adminName: currentAdminProfile?.name || "System",
+    action, details, createdAt: serverTimestamp(),
+  }).catch(() => {});
+}
+function listenLogs(cb, max = 100) {
+  return onSnapshot(query(collection(db, "logs"), orderBy("createdAt", "desc"), limit(max)), (snap) => {
+    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  });
+}
+
+// ------------------------------------------------------------
+// USERS
+// ------------------------------------------------------------
+function listenAllUsers(cb) {
+  return onSnapshot(collection(db, "users"), (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+}
+async function setUserRole(uid, role) {
+  await updateDoc(doc(db, "users", uid), { role });
+  await writeLog(`Admin Promote/Set Role -> ${role}`, uid);
+}
+async function setVerified(uid, verified) {
+  await updateDoc(doc(db, "users", uid), { verified });
+  await writeLog(verified ? "Admin Verify User" : "Admin Unverify User", uid);
+}
+async function banUser(uid, { reason, durationDays, permanent }) {
+  const banExpiresAt = permanent ? null : new Date(Date.now() + durationDays * 86400000);
+  await updateDoc(doc(db, "users", uid), {
+    banned: true, banReason: reason, banExpiresAt, banPermanent: !!permanent,
+    banAt: serverTimestamp(), online: false,
+  });
+  await writeLog("Admin Ban User", `${uid} — ${reason} — ${permanent ? "permanent" : durationDays + "d"}`);
+}
+async function unbanUser(uid) {
+  await updateDoc(doc(db, "users", uid), {
+    banned: false, banReason: "", banExpiresAt: null, banPermanent: false,
+  });
+  await writeLog("Admin Unban User", uid);
+}
+
+// ------------------------------------------------------------
+// DASHBOARD STATS
+// ------------------------------------------------------------
+function listenCount(colPath, filterFn, cb) {
+  return onSnapshot(collection(db, colPath), (snap) => {
+    const docs = snap.docs.map((d) => d.data());
+    cb(filterFn ? docs.filter(filterFn).length : docs.length);
+  });
+}
+function listenDailyStats(cb, days = 14) {
+  return onSnapshot(query(collection(db, "dailyStats"), orderBy("date", "desc"), limit(days)), (snap) => {
+    cb(snap.docs.map((d) => d.data()).reverse());
+  });
+}
+async function bumpDailyStat(field) {
+  const day = new Date().toISOString().slice(0, 10);
+  const ref = doc(db, "dailyStats", day);
+  const snap = await getDoc(ref);
+  const current = snap.exists() ? (snap.data()[field] || 0) : 0;
+  await setDoc(ref, { [field]: current + 1, date: day }, { merge: true });
+}
+
+// ------------------------------------------------------------
+// BROADCAST
+// ------------------------------------------------------------
+async function sendBroadcast({ title, body, imageURL, link, priority, pinned, target }) {
+  const ref = await addDoc(collection(db, "broadcasts"), {
+    title, body, imageURL: imageURL || "", link: link || "", priority, pinned: !!pinned,
+    target, createdBy: currentAdmin.uid, createdAt: serverTimestamp(),
+  });
+  // client-side fan-out to notifications for matching users (for very large
+  // user bases, replace with a Cloud Function trigger on this document).
+  let usersSnap;
+  if (target.type === "all") usersSnap = await getDocs(collection(db, "users"));
+  else if (target.type === "role") usersSnap = await getDocs(query(collection(db, "users"), where("role", "==", target.value)));
+  else if (target.type === "user") usersSnap = { docs: [{ id: target.value }] };
+  else usersSnap = { docs: [] };
+
+  await Promise.all(usersSnap.docs.map((d) =>
+    addDoc(collection(db, "notifications", d.id, "items"), {
+      title, body, type: "broadcast", link: link || "./index.html", read: false, createdAt: serverTimestamp(),
+    }).catch(() => {})
+  ));
+  await bumpDailyStat("broadcasts");
+  await writeLog("Admin Broadcast", title);
+  return ref.id;
+}
+function listenBroadcasts(cb) {
+  return onSnapshot(query(collection(db, "broadcasts"), orderBy("createdAt", "desc"), limit(50)), (snap) => {
+    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  });
+}
+
+// ------------------------------------------------------------
+// REPORTS
+// ------------------------------------------------------------
+function listenReports(cb) {
+  return onSnapshot(query(collection(db, "reports"), orderBy("createdAt", "desc")), (snap) => {
+    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  });
+}
+async function resolveReport(id) {
+  await updateDoc(doc(db, "reports", id), { status: "resolved" });
+  await writeLog("Admin Resolve Report", id);
+}
+async function deleteReport(id) {
+  await deleteDoc(doc(db, "reports", id));
+  await writeLog("Admin Delete Report", id);
+}
+
+// ------------------------------------------------------------
+// GROUPS
+// ------------------------------------------------------------
+function listenGroups(cb) {
+  return onSnapshot(collection(db, "groups"), (snap) => cb(snap.docs.map((d) => ({ id: d.id, ...d.data() }))));
+}
+async function deleteGroup(id) {
+  await deleteDoc(doc(db, "groups", id));
+  await writeLog("Admin Delete Group", id);
+}
+async function muteGroup(id, muted) {
+  await updateDoc(doc(db, "groups", id), { muted });
+  await writeLog(muted ? "Admin Mute Group" : "Admin Unmute Group", id);
+}
+async function closeGroup(id, closed) {
+  await updateDoc(doc(db, "groups", id), { closed });
+  await writeLog(closed ? "Admin Close Group" : "Admin Reopen Group", id);
+}
+async function updateGroup(id, data) {
+  await updateDoc(doc(db, "groups", id), data);
+  await writeLog("Admin Edit Group", id);
+}
+
+// ------------------------------------------------------------
+// STORIES
+// ------------------------------------------------------------
+function listenStories(cb) {
+  return onSnapshot(query(collection(db, "stories"), orderBy("createdAt", "desc")), (snap) => {
+    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  });
+}
+async function deleteStory(id) {
+  await deleteDoc(doc(db, "stories", id));
+  await writeLog("Admin Delete Story", id);
+}
+async function hideStory(id, hidden) {
+  await updateDoc(doc(db, "stories", id), { hidden });
+  await writeLog(hidden ? "Admin Hide Story" : "Admin Unhide Story", id);
+}
+
+// ------------------------------------------------------------
+// CHAT MONITOR
+// ------------------------------------------------------------
+async function searchPrivateChats(term) {
+  const snap = await getDocs(collection(db, "privateChats"));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((c) => !term || (c.lastMessage || "").toLowerCase().includes(term.toLowerCase()));
+}
+function listenChatMessages(chatId, cb) {
+  return onSnapshot(query(collection(db, "privateChats", chatId, "messages"), orderBy("createdAt", "desc"), limit(50)), (snap) => {
+    cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+  });
+}
+async function adminDeleteMessage(chatId, msgId) {
+  await deleteDoc(doc(db, "privateChats", chatId, "messages", msgId));
+  await writeLog("Admin Delete Message", `${chatId}/${msgId}`);
+}
+
+// ------------------------------------------------------------
+// NOTIFICATION MANAGER
+// ------------------------------------------------------------
+async function sendMaintenanceNotice(message) {
+  await setDoc(doc(db, "settings", "app"), { maintenanceMessage: message, maintenanceAt: serverTimestamp() }, { merge: true });
+  await writeLog("Admin Maintenance Notification", message);
+}
+
+// ------------------------------------------------------------
+// STORAGE MANAGER
+// ------------------------------------------------------------
+async function listStorageFolder(folder) {
+  const dirRef = storageRef(storage, folder);
+  const res = await listAll(dirRef);
+  const files = [];
+  for (const itemRef of res.items) {
+    files.push({ path: itemRef.fullPath, name: itemRef.name, ref: itemRef });
+  }
+  for (const prefixRef of res.prefixes) {
+    const nested = await listAll(prefixRef);
+    nested.items.forEach((itemRef) => files.push({ path: itemRef.fullPath, name: itemRef.name, ref: itemRef }));
+  }
+  return files;
+}
+async function deleteStorageFile(fileRef) {
+  await deleteObject(fileRef);
+  await writeLog("Admin Delete File", fileRef.fullPath);
+}
+
+// ------------------------------------------------------------
+// SETTINGS
+// ------------------------------------------------------------
+async function getAppSettings() {
+  const snap = await getDoc(doc(db, "settings", "app"));
+  return snap.exists() ? snap.data() : {};
+}
+async function saveAppSettings(data) {
+  await setDoc(doc(db, "settings", "app"), data, { merge: true });
+  await writeLog("Admin Update Settings", JSON.stringify(data));
+}
+
+// ------------------------------------------------------------
+// MINI CANVAS CHARTS (no external chart library)
+// ------------------------------------------------------------
+function drawLineChart(canvas, labels, series) {
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width = canvas.clientWidth * 2;
+  const h = canvas.height = canvas.clientHeight * 2;
+  ctx.clearRect(0, 0, w, h);
+  const pad = 40;
+  const max = Math.max(1, ...series);
+  const stepX = (w - pad * 2) / Math.max(1, series.length - 1);
+  ctx.strokeStyle = "rgba(108,92,231,0.9)";
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  series.forEach((v, i) => {
+    const x = pad + i * stepX;
+    const y = h - pad - (v / max) * (h - pad * 2);
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, "rgba(108,92,231,0.25)");
+  grad.addColorStop(1, "rgba(108,92,231,0)");
+  ctx.lineTo(pad + (series.length - 1) * stepX, h - pad);
+  ctx.lineTo(pad, h - pad);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.fillStyle = "rgba(108,92,231,1)";
+  series.forEach((v, i) => {
+    const x = pad + i * stepX;
+    const y = h - pad - (v / max) * (h - pad * 2);
+    ctx.beginPath(); ctx.arc(x, y, 6, 0, Math.PI * 2); ctx.fill();
+  });
+  ctx.fillStyle = "#8a8fb0";
+  ctx.font = "20px sans-serif";
+  labels.forEach((l, i) => {
+    const x = pad + i * stepX;
+    ctx.fillText(l, x - 14, h - 8);
+  });
+}
+function drawBarChart(canvas, labels, series) {
+  const ctx = canvas.getContext("2d");
+  const w = canvas.width = canvas.clientWidth * 2;
+  const h = canvas.height = canvas.clientHeight * 2;
+  ctx.clearRect(0, 0, w, h);
+  const pad = 40;
+  const max = Math.max(1, ...series);
+  const barW = (w - pad * 2) / series.length * 0.6;
+  const gap = (w - pad * 2) / series.length;
+  series.forEach((v, i) => {
+    const barH = (v / max) * (h - pad * 2);
+    const x = pad + i * gap + (gap - barW) / 2;
+    const y = h - pad - barH;
+    const grad = ctx.createLinearGradient(0, y, 0, y + barH);
+    grad.addColorStop(0, "#6c5ce7"); grad.addColorStop(1, "#00cec9");
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(x, y, barW, barH, 8) : ctx.rect(x, y, barW, barH);
+    ctx.fill();
+  });
+  ctx.fillStyle = "#8a8fb0";
+  ctx.font = "20px sans-serif";
+  labels.forEach((l, i) => {
+    const x = pad + i * gap + gap / 2;
+    ctx.fillText(l, x - 14, h - 8);
+  });
+}
+
+// ------------------------------------------------------------
+// UI HELPERS
+// ------------------------------------------------------------
+function avatarOrFallback(url, name) {
+  return url || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name || "M")}&backgroundColor=6c5ce7,00cec9`;
+}
+function fmtDate(tsField) {
+  if (!tsField) return "-";
+  const d = tsField.toDate ? tsField.toDate() : new Date(tsField);
+  return d.toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+function el(html) { const d = document.createElement("div"); d.innerHTML = html.trim(); return d.firstElementChild; }
+function openModal(innerHTML) {
+  const overlay = el(`<div class="overlay"><div class="modal">${innerHTML}</div></div>`);
+  overlay.addEventListener("click", (e) => { if (e.target === overlay) overlay.remove(); });
+  document.body.appendChild(overlay);
+  return overlay;
+}
+
+// ------------------------------------------------------------
+// LOGIN
+// ------------------------------------------------------------
+document.getElementById("adminLoginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById("aLoginBtn");
+  btn.disabled = true; btn.textContent = "Memproses...";
+  try {
+    await adminLogin(document.getElementById("aEmail").value.trim(), document.getElementById("aPassword").value);
+  } catch (err) {
+    toast(friendlyError(err), "error");
+    btn.disabled = false; btn.textContent = "Masuk";
+  }
+});
+document.getElementById("logoutItem").addEventListener("click", () => adminLogout());
+document.getElementById("themeBtn").addEventListener("click", toggleAdminTheme);
+
+watchAdminAuth({
+  onReady: (user, profile) => {
+    document.getElementById("loginScreen").style.display = "none";
+    document.getElementById("adminApp").classList.add("active");
+    document.getElementById("whoName").textContent = `${profile.name} (${profile.role})`;
+    initSidebarPermissions(profile.role);
+    initApp();
+  },
+  onLoggedOut: () => {
+    document.getElementById("loginScreen").style.display = "flex";
+    document.getElementById("adminApp").classList.remove("active");
+    document.getElementById("aLoginBtn").disabled = false;
+    document.getElementById("aLoginBtn").textContent = "Masuk";
+  },
+});
+
+function initSidebarPermissions(role) {
+  if (role !== "admin") {
+    document.querySelectorAll('[data-section="settings"], [data-section="broadcast"]').forEach((e) => e.classList.add("hidden"));
+  }
+}
+
+// ------------------------------------------------------------
+// SIDEBAR NAVIGATION (SPA — no reload)
+// ------------------------------------------------------------
+const sectionTitles = {
+  dashboard: "Dashboard", users: "User Management", broadcast: "Broadcast", reports: "Reports",
+  groups: "Group Manager", stories: "Story Manager", chatmonitor: "Chat Monitor",
+  notifications: "Notification Manager", analytics: "Analytics", storage: "Storage Manager",
+  logs: "Logs", settings: "Settings",
+};
+let appInitialized = false;
+document.querySelectorAll(".side-item[data-section]").forEach((item) => {
+  item.addEventListener("click", () => {
+    document.querySelectorAll(".side-item").forEach((i) => i.classList.remove("active"));
+    item.classList.add("active");
+    document.querySelectorAll(".section").forEach((s) => s.classList.remove("active"));
+    document.getElementById(`sec-${item.dataset.section}`).classList.add("active");
+    document.getElementById("sectionTitle").textContent = sectionTitles[item.dataset.section];
+  });
+});
+
+let allUsersCache = [];
+let allGroupsCache = [];
+
+function initApp() {
+  if (appInitialized) return;
+  appInitialized = true;
+  initDashboard();
+  initUsers();
+  initBroadcast();
+  initReports();
+  initGroups();
+  initStories();
+  initChatMonitor();
+  initNotifications();
+  initAnalytics();
+  initStorage();
+  initLogs();
+  initSettings();
+}
+
+// ------------------------------------------------------------
+// DASHBOARD
+// ------------------------------------------------------------
+function statCard(id, label, icon, color) {
+  return `<div class="card stat-card"><div class="ic" style="background:${color};">${icon}</div><div class="label">${label}</div><div class="value" id="${id}">0</div></div>`;
+}
+function initDashboard() {
+  document.getElementById("statCards").innerHTML = [
+    statCard("statUsers", "Total User", "👥", "#6c5ce7"),
+    statCard("statOnline", "Online User", "🟢", "#2ecc71"),
+    statCard("statChats", "Total Chat", "💬", "#00cec9"),
+    statCard("statGroups", "Total Group", "👨‍👩‍👧", "#ffb84d"),
+    statCard("statStories", "Total Story", "🟣", "#a29bfe"),
+    statCard("statBroadcast", "Total Broadcast", "📢", "#ff7675"),
+    statCard("statReports", "Total Report", "🚩", "#ff5c72"),
+    statCard("statStorage", "Storage Usage (perkiraan file)", "🗄️", "#14162b"),
+  ].join("");
+
+  listenCount("users", null, (n) => document.getElementById("statUsers").textContent = n);
+  listenCount("users", (u) => u.online, (n) => document.getElementById("statOnline").textContent = n);
+  listenCount("privateChats", null, (n) => document.getElementById("statChats").textContent = n);
+  listenCount("groups", null, (n) => document.getElementById("statGroups").textContent = n);
+  listenCount("stories", null, (n) => document.getElementById("statStories").textContent = n);
+  listenCount("broadcasts", null, (n) => document.getElementById("statBroadcast").textContent = n);
+  listenCount("reports", (r) => r.status !== "resolved", (n) => document.getElementById("statReports").textContent = n);
+  document.getElementById("statStorage").textContent = "—";
+
+  listenDailyStats((rows) => {
+    drawLineChart(document.getElementById("chartDaily"), rows.map((r) => r.date?.slice(5) || ""), rows.map((r) => r.newUsers || 0));
+    drawBarChart(document.getElementById("chartMonthly"), rows.map((r) => r.date?.slice(5) || ""), rows.map((r) => (r.chats || 0) + (r.broadcasts || 0)));
+  });
+}
+
+// ------------------------------------------------------------
+// USERS
+// ------------------------------------------------------------
+let usersPage = 0;
+const USERS_PER_PAGE = 10;
+function initUsers() {
+  listenAllUsers((users) => { allUsersCache = users; renderUsers(); });
+  ["userSearch", "userRoleFilter", "userStatusFilter", "userSort"].forEach((id) => {
+    document.getElementById(id).addEventListener("input", () => { usersPage = 0; renderUsers(); });
+  });
+}
+function filteredUsers() {
+  const term = document.getElementById("userSearch").value.trim().toLowerCase();
+  const roleF = document.getElementById("userRoleFilter").value;
+  const statusF = document.getElementById("userStatusFilter").value;
+  const sort = document.getElementById("userSort").value;
+  let list = allUsersCache.filter((u) => {
+    if (term && !(u.name || "").toLowerCase().includes(term) && !(u.username || "").toLowerCase().includes(term) && !(u.email || "").toLowerCase().includes(term)) return false;
+    if (roleF && u.role !== roleF) return false;
+    if (statusF === "banned" && !u.banned) return false;
+    if (statusF === "online" && !u.online) return false;
+    if (statusF === "verified" && !u.verified) return false;
+    return true;
+  });
+  const [field, dir] = sort.split("_");
+  list.sort((a, b) => {
+    let av = a[field], bv = b[field];
+    if (field === "createdAt") { av = av?.toMillis?.() || 0; bv = bv?.toMillis?.() || 0; }
+    if (typeof av === "string") return dir === "asc" ? av.localeCompare(bv || "") : (bv || "").localeCompare(av);
+    return dir === "asc" ? av - bv : bv - av;
+  });
+  return list;
+}
+function renderUsers() {
+  const list = filteredUsers();
+  const totalPages = Math.max(1, Math.ceil(list.length / USERS_PER_PAGE));
+  usersPage = Math.min(usersPage, totalPages - 1);
+  const page = list.slice(usersPage * USERS_PER_PAGE, (usersPage + 1) * USERS_PER_PAGE);
+  const tbody = document.getElementById("usersTbody");
+  if (!page.length) { tbody.innerHTML = `<tr><td colspan="9" class="empty">Tidak ada user ditemukan</td></tr>`; }
+  else {
+    tbody.innerHTML = page.map((u) => `
+      <tr>
+        <td><img class="avatar-sm" src="${avatarOrFallback(u.photoURL, u.name)}"/></td>
+        <td>${u.name || "-"}</td>
+        <td>@${u.username || "-"}</td>
+        <td>${u.email || "-"}</td>
+        <td>${u.banned ? '<span class="pill banned">Banned</span>' : u.verified ? '<span class="pill verified">Verified</span>' : '<span class="pill role-user">Aktif</span>'}</td>
+        <td><span class="pill role-${u.role}">${u.role}</span></td>
+        <td><span class="pill ${u.online ? "online" : "offline"}">${u.online ? "Online" : "Offline"}</span></td>
+        <td class="small">${fmtDate(u.createdAt)}</td>
+        <td><button class="btn secondary sm" data-detail="${u.id}">Detail</button></td>
+      </tr>
+    `).join("");
+  }
+  tbody.querySelectorAll("[data-detail]").forEach((btn) => btn.addEventListener("click", () => openUserDetail(btn.dataset.detail)));
+
+  const pag = document.getElementById("usersPagination");
+  pag.innerHTML = Array.from({ length: totalPages }, (_, i) =>
+    `<button class="${i === usersPage ? "active" : ""}" data-page="${i}">${i + 1}</button>`).join("");
+  pag.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => { usersPage = +b.dataset.page; renderUsers(); }));
+}
+async function openUserDetail(uid) {
+  const u = allUsersCache.find((x) => x.id === uid);
+  if (!u) return;
+  const [chatsSnap, storiesSnap] = await Promise.all([
+    getDocs(query(collection(db, "privateChats"), where("members", "array-contains", uid))),
+    getDocs(query(collection(db, "stories"), where("uid", "==", uid))),
+  ]);
+  const overlay = openModal(`
+    <h3>${u.name} <span class="pill role-${u.role}">${u.role}</span></h3>
+    <img src="${avatarOrFallback(u.photoURL, u.name)}" style="width:64px;height:64px;border-radius:50%;object-fit:cover;margin-bottom:10px;" />
+    <p class="small">Username: @${u.username} · Email: ${u.email}</p>
+    <p class="small">Bio: ${u.bio || "-"} · Status: ${u.status || "-"}</p>
+    <p class="small">Jumlah Chat: <strong>${chatsSnap.size}</strong> · Jumlah Story: <strong>${storiesSnap.size}</strong></p>
+    <p class="small">Terdaftar: ${fmtDate(u.createdAt)} · ${u.online ? "Sedang Online" : "Offline — " + fmtDate(u.lastSeen)}</p>
+    ${u.banned ? `<p class="small text-danger">Dibanned: ${u.banReason} (${u.banPermanent ? "Permanent" : fmtDate(u.banExpiresAt)})</p>` : ""}
+    <div class="flex-between mt-8" style="margin-top:14px;flex-wrap:wrap;gap:8px;">
+      <select id="roleSelect">
+        <option value="user" ${u.role === "user" ? "selected" : ""}>User</option>
+        <option value="moderator" ${u.role === "moderator" ? "selected" : ""}>Moderator</option>
+        <option value="admin" ${u.role === "admin" ? "selected" : ""}>Admin</option>
+      </select>
+      <button class="btn secondary sm" id="saveRoleBtn">Simpan Role</button>
+      <button class="btn secondary sm" id="toggleVerifyBtn">${u.verified ? "Batalkan Verifikasi" : "Verifikasi"}</button>
+      ${u.banned
+        ? '<button class="btn success sm" id="unbanBtn">Unban</button>'
+        : '<button class="btn danger sm" id="banBtn">Ban User</button>'}
+    </div>
+  `);
+  overlay.querySelector("#saveRoleBtn").addEventListener("click", async () => {
+    await setUserRole(uid, overlay.querySelector("#roleSelect").value);
+    toast("Role diperbarui", "success"); overlay.remove();
+  });
+  overlay.querySelector("#toggleVerifyBtn").addEventListener("click", async () => {
+    await setVerified(uid, !u.verified); toast("Status verifikasi diperbarui", "success"); overlay.remove();
+  });
+  overlay.querySelector("#unbanBtn")?.addEventListener("click", async () => {
+    await unbanUser(uid); toast("User di-unban", "success"); overlay.remove();
+  });
+  overlay.querySelector("#banBtn")?.addEventListener("click", () => { overlay.remove(); openBanModal(uid, u.name); });
+}
+function openBanModal(uid, name) {
+  const overlay = openModal(`
+    <h3>Ban ${name}</h3>
+    <div class="field"><label>Durasi</label>
+      <select id="banDuration">
+        <option value="1">1 Hari</option>
+        <option value="3">3 Hari</option>
+        <option value="7">7 Hari</option>
+        <option value="30">30 Hari</option>
+        <option value="custom">Custom (hari)</option>
+        <option value="permanent">Permanent</option>
+      </select>
+    </div>
+    <div class="field hidden" id="customDaysWrap"><label>Jumlah Hari</label><input type="number" id="customDays" min="1" /></div>
+    <div class="field"><label>Alasan</label><textarea id="banReason" rows="3" required></textarea></div>
+    <button class="btn danger block" id="confirmBanBtn">Konfirmasi Ban</button>
+  `);
+  overlay.querySelector("#banDuration").addEventListener("change", (e) => {
+    overlay.querySelector("#customDaysWrap").classList.toggle("hidden", e.target.value !== "custom");
+  });
+  overlay.querySelector("#confirmBanBtn").addEventListener("click", async () => {
+    const dur = overlay.querySelector("#banDuration").value;
+    const reason = overlay.querySelector("#banReason").value.trim();
+    if (!reason) return toast("Alasan wajib diisi", "error");
+    const permanent = dur === "permanent";
+    const durationDays = dur === "custom" ? Number(overlay.querySelector("#customDays").value || 1) : Number(dur);
+    await banUser(uid, { reason, durationDays, permanent });
+    toast("User berhasil dibanned", "success");
+    overlay.remove();
+  });
+}
+
+// ------------------------------------------------------------
+// BROADCAST
+// ------------------------------------------------------------
+function initBroadcast() {
+  document.getElementById("bTargetType").addEventListener("change", (e) => {
+    document.getElementById("bTargetValueWrap").classList.toggle("hidden", !["user", "group"].includes(e.target.value));
+  });
+  document.getElementById("bSendBtn").addEventListener("click", async () => {
+    const title = document.getElementById("bTitle").value.trim();
+    const body = document.getElementById("bBody").value.trim();
+    if (!title || !body) return toast("Judul dan isi wajib diisi", "error");
+    const targetType = document.getElementById("bTargetType").value;
+    let target;
+    if (targetType === "all") target = { type: "all" };
+    else if (targetType.startsWith("role:")) target = { type: "role", value: targetType.split(":")[1] };
+    else target = { type: targetType, value: document.getElementById("bTargetValue").value.trim() };
+    try {
+      await sendBroadcast({
+        title, body, imageURL: "", link: document.getElementById("bLink").value.trim(),
+        priority: document.getElementById("bPriority").value, pinned: document.getElementById("bPinned").checked,
+        target,
+      });
+      toast("Broadcast terkirim!", "success");
+      document.getElementById("bTitle").value = ""; document.getElementById("bBody").value = "";
+    } catch (err) { toast(friendlyError(err), "error"); }
+  });
+  listenBroadcasts((items) => {
+    const list = document.getElementById("broadcastList");
+    if (!items.length) { list.innerHTML = '<div class="empty">Belum ada broadcast</div>'; return; }
+    list.innerHTML = items.map((b) => `
+      <div class="log-item">
+        <strong>${b.title}</strong> ${b.pinned ? "📌" : ""}<br/>
+        <span class="small">${b.body}</span><br/>
+        <span class="time">${fmtDate(b.createdAt)} · target: ${b.target?.type}${b.target?.value ? ":" + b.target.value : ""} · prioritas: ${b.priority}</span>
+      </div>
+    `).join("");
+  });
+}
+
+// ------------------------------------------------------------
+// REPORTS
+// ------------------------------------------------------------
+function initReports() {
+  listenReports((reports) => {
+    const tbody = document.getElementById("reportsTbody");
+    if (!reports.length) { tbody.innerHTML = `<tr><td colspan="6" class="empty">Belum ada laporan</td></tr>`; return; }
+    tbody.innerHTML = reports.map((r) => `
+      <tr>
+        <td class="small">${r.reporterId}</td>
+        <td class="small">${r.targetType}: ${r.targetId}</td>
+        <td>${r.reason}</td>
+        <td><span class="pill ${r.status === "resolved" ? "online" : "banned"}">${r.status}</span></td>
+        <td class="small">${fmtDate(r.createdAt)}</td>
+        <td>
+          ${r.status !== "resolved" ? `<button class="btn secondary sm" data-resolve="${r.id}">Selesai</button>` : ""}
+          <button class="btn danger sm" data-del="${r.id}">Hapus</button>
+        </td>
+      </tr>
+    `).join("");
+    tbody.querySelectorAll("[data-resolve]").forEach((b) => b.addEventListener("click", () => resolveReport(b.dataset.resolve).then(() => toast("Laporan ditandai selesai", "success"))));
+    tbody.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => deleteReport(b.dataset.del).then(() => toast("Laporan dihapus", "success"))));
+  });
+}
+
+// ------------------------------------------------------------
+// GROUPS
+// ------------------------------------------------------------
+function initGroups() {
+  listenGroups((groups) => {
+    allGroupsCache = groups;
+    const tbody = document.getElementById("groupsTbody");
+    if (!groups.length) { tbody.innerHTML = `<tr><td colspan="5" class="empty">Belum ada grup</td></tr>`; return; }
+    tbody.innerHTML = groups.map((g) => `
+      <tr>
+        <td>${g.name}</td>
+        <td>${(g.members || []).length}</td>
+        <td>${g.closed ? '<span class="pill banned">Ditutup</span>' : g.muted ? '<span class="pill role-moderator">Muted</span>' : '<span class="pill online">Aktif</span>'}</td>
+        <td class="small">${fmtDate(g.createdAt)}</td>
+        <td>
+          <button class="btn secondary sm" data-edit="${g.id}">Edit</button>
+          <button class="btn secondary sm" data-mute="${g.id}">${g.muted ? "Unmute" : "Mute"}</button>
+          <button class="btn secondary sm" data-close="${g.id}">${g.closed ? "Buka" : "Tutup"}</button>
+          <button class="btn danger sm" data-del="${g.id}">Hapus</button>
+        </td>
+      </tr>
+    `).join("");
+    tbody.querySelectorAll("[data-mute]").forEach((b) => b.addEventListener("click", () => {
+      const g = allGroupsCache.find((x) => x.id === b.dataset.mute);
+      muteGroup(g.id, !g.muted).then(() => toast("Status mute grup diperbarui", "success"));
+    }));
+    tbody.querySelectorAll("[data-close]").forEach((b) => b.addEventListener("click", () => {
+      const g = allGroupsCache.find((x) => x.id === b.dataset.close);
+      closeGroup(g.id, !g.closed).then(() => toast("Status grup diperbarui", "success"));
+    }));
+    tbody.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => {
+      if (confirm("Hapus grup ini secara permanen?")) deleteGroup(b.dataset.del).then(() => toast("Grup dihapus", "success"));
+    }));
+    tbody.querySelectorAll("[data-edit]").forEach((b) => b.addEventListener("click", () => {
+      const g = allGroupsCache.find((x) => x.id === b.dataset.edit);
+      const overlay = openModal(`
+        <h3>Edit Grup</h3>
+        <div class="field"><label>Nama</label><input id="egName" value="${g.name}" /></div>
+        <div class="field"><label>Deskripsi</label><textarea id="egDesc" rows="3">${g.description || ""}</textarea></div>
+        <button class="btn block" id="egSave">Simpan</button>
+      `);
+      overlay.querySelector("#egSave").addEventListener("click", async () => {
+        await updateGroup(g.id, { name: overlay.querySelector("#egName").value.trim(), description: overlay.querySelector("#egDesc").value.trim() });
+        toast("Grup diperbarui", "success"); overlay.remove();
+      });
+    }));
+  });
+}
+
+// ------------------------------------------------------------
+// STORIES
+// ------------------------------------------------------------
+function initStories() {
+  listenStories((stories) => {
+    const grid = document.getElementById("storiesGrid");
+    if (!stories.length) { grid.innerHTML = '<div class="empty">Belum ada story</div>'; return; }
+    grid.innerHTML = stories.map((s) => `
+      <div class="card">
+        ${s.type === "video" ? `<video src="${s.mediaURL}" style="width:100%;border-radius:12px;" muted></video>` : `<img src="${s.mediaURL}" style="width:100%;border-radius:12px;object-fit:cover;height:140px;" />`}
+        <p class="small mt-8">${s.authorName || s.uid}</p>
+        <p class="small">${fmtDate(s.createdAt)} ${s.hidden ? '<span class="pill banned">Hidden</span>' : ""}</p>
+        <div class="flex-between mt-8" style="gap:6px;">
+          <button class="btn secondary sm" data-hide="${s.id}">${s.hidden ? "Tampilkan" : "Sembunyikan"}</button>
+          <button class="btn danger sm" data-del="${s.id}">Hapus</button>
+        </div>
+      </div>
+    `).join("");
+    grid.querySelectorAll("[data-hide]").forEach((b) => {
+      const s = stories.find((x) => x.id === b.dataset.hide);
+      b.addEventListener("click", () => hideStory(s.id, !s.hidden).then(() => toast("Status story diperbarui", "success")));
+    });
+    grid.querySelectorAll("[data-del]").forEach((b) => b.addEventListener("click", () => {
+      if (confirm("Hapus story ini?")) deleteStory(b.dataset.del).then(() => toast("Story dihapus", "success"));
+    }));
+  });
+}
+
+// ------------------------------------------------------------
+// CHAT MONITOR
+// ------------------------------------------------------------
+let unsubChatMessages = null;
+function initChatMonitor() {
+  async function render() {
+    const term = document.getElementById("chatSearch").value.trim();
+    const chats = await searchPrivateChats(term);
+    const list = document.getElementById("chatListMonitor");
+    if (!chats.length) { list.innerHTML = '<div class="empty">Tidak ada chat</div>'; return; }
+    list.innerHTML = chats.map((c) => `<div class="log-item" style="cursor:pointer;" data-chat="${c.id}"><strong>${c.id}</strong><br/><span class="small">${c.lastMessage || "-"}</span></div>`).join("");
+    list.querySelectorAll("[data-chat]").forEach((row) => row.addEventListener("click", () => openChatMessages(row.dataset.chat)));
+  }
+  document.getElementById("chatSearch").addEventListener("input", render);
+  render();
+}
+function openChatMessages(chatId) {
+  if (unsubChatMessages) unsubChatMessages();
+  unsubChatMessages = listenChatMessages(chatId, (messages) => {
+    const box = document.getElementById("chatMessagesMonitor");
+    if (!messages.length) { box.innerHTML = '<div class="empty">Tidak ada pesan</div>'; return; }
+    box.innerHTML = messages.map((m) => `
+      <div class="log-item">
+        <span class="small">${m.senderId}</span> — ${m.text || `[${m.type}]`}
+        <button class="btn danger sm" style="float:right;" data-del-msg="${m.id}">Hapus</button>
+      </div>
+    `).join("");
+    box.querySelectorAll("[data-del-msg]").forEach((b) => b.addEventListener("click", () => {
+      if (confirm("Hapus pesan ini?")) adminDeleteMessage(chatId, b.dataset.delMsg).then(() => toast("Pesan dihapus", "success"));
+    }));
+  });
+}
+
+// ------------------------------------------------------------
+// NOTIFICATIONS MANAGER
+// ------------------------------------------------------------
+function initNotifications() {
+  document.getElementById("maintSendBtn").addEventListener("click", async () => {
+    const msg = document.getElementById("maintMsg").value.trim();
+    if (!msg) return toast("Pesan wajib diisi", "error");
+    await sendMaintenanceNotice(msg);
+    toast("Notifikasi maintenance dikirim", "success");
+  });
+}
+
+// ------------------------------------------------------------
+// ANALYTICS
+// ------------------------------------------------------------
+function initAnalytics() {
+  listenDailyStats((rows) => {
+    const labels = rows.map((r) => r.date?.slice(5) || "");
+    const grid = document.getElementById("analyticsGrid");
+    grid.innerHTML = `
+      <div class="chart-wrap"><h4>User Baru</h4><canvas id="chNewUsers"></canvas></div>
+      <div class="chart-wrap"><h4>Chat</h4><canvas id="chChats"></canvas></div>
+      <div class="chart-wrap"><h4>Story</h4><canvas id="chStories"></canvas></div>
+      <div class="chart-wrap"><h4>Broadcast</h4><canvas id="chBroadcasts"></canvas></div>
+      <div class="chart-wrap"><h4>Report</h4><canvas id="chReports"></canvas></div>
+      <div class="chart-wrap"><h4>Online User (snapshot)</h4><canvas id="chOnline"></canvas></div>
+    `;
+    drawLineChart(document.getElementById("chNewUsers"), labels, rows.map((r) => r.newUsers || 0));
+    drawBarChart(document.getElementById("chChats"), labels, rows.map((r) => r.chats || 0));
+    drawBarChart(document.getElementById("chStories"), labels, rows.map((r) => r.stories || 0));
+    drawLineChart(document.getElementById("chBroadcasts"), labels, rows.map((r) => r.broadcasts || 0));
+    drawBarChart(document.getElementById("chReports"), labels, rows.map((r) => r.reports || 0));
+    drawLineChart(document.getElementById("chOnline"), labels, rows.map((r) => r.online || 0));
+  });
+}
+
+// ------------------------------------------------------------
+// STORAGE MANAGER
+// ------------------------------------------------------------
+function initStorage() {
+  document.getElementById("storageRefreshBtn").addEventListener("click", loadStorage);
+  loadStorage();
+}
+async function loadStorage() {
+  const folder = document.getElementById("storageFolder").value;
+  const grid = document.getElementById("storageGrid");
+  grid.innerHTML = '<div class="empty">Memuat...</div>';
+  try {
+    const files = await listStorageFolder(folder);
+    if (!files.length) { grid.innerHTML = '<div class="empty">Tidak ada file di folder ini</div>'; return; }
+    const withUrls = await Promise.all(files.slice(0, 60).map(async (f) => ({ ...f, url: await getDownloadURL(f.ref).catch(() => "") })));
+    grid.innerHTML = withUrls.map((f) => `
+      <div class="card">
+        <div style="height:100px;border-radius:10px;overflow:hidden;background:var(--bg);display:flex;align-items:center;justify-content:center;">
+          ${/\.(png|jpe?g|gif|webp)$/i.test(f.name) ? `<img src="${f.url}" style="width:100%;height:100%;object-fit:cover;" />` : "📄"}
+        </div>
+        <p class="small mt-8" style="word-break:break-all;">${f.name}</p>
+        <button class="btn danger sm" data-del="${f.path}">Hapus</button>
+      </div>
+    `).join("");
+    grid.querySelectorAll("[data-del]").forEach((b) => {
+      const f = withUrls.find((x) => x.path === b.dataset.del);
+      b.addEventListener("click", async () => {
+        if (!confirm("Hapus file ini secara permanen?")) return;
+        await deleteStorageFile(f.ref);
+        toast("File dihapus", "success");
+        loadStorage();
+      });
+    });
+  } catch (e) {
+    grid.innerHTML = `<div class="empty">Gagal memuat storage: ${e.message}</div>`;
+  }
+}
+
+// ------------------------------------------------------------
+// LOGS
+// ------------------------------------------------------------
+function initLogs() {
+  listenLogs((logs) => {
+    const box = document.getElementById("logsList");
+    if (!logs.length) { box.innerHTML = '<div class="empty">Belum ada aktivitas admin</div>'; return; }
+    box.innerHTML = logs.map((l) => `
+      <div class="log-item"><strong>${l.action}</strong> — ${l.details || ""}<br/>
+      <span class="time">${l.adminName} · ${fmtDate(l.createdAt)}</span></div>
+    `).join("");
+  });
+}
+
+// ------------------------------------------------------------
+// SETTINGS
+// ------------------------------------------------------------
+async function initSettings() {
+  const settings = await getAppSettings();
+  document.getElementById("maintenanceToggle").checked = !!settings.maintenanceMode;
+  document.getElementById("settingsAppName").value = settings.appName || "Malzz Chat";
+  document.getElementById("saveSettingsBtn").addEventListener("click", async () => {
+    await saveAppSettings({
+      maintenanceMode: document.getElementById("maintenanceToggle").checked,
+      appName: document.getElementById("settingsAppName").value.trim(),
+    });
+    toast("Pengaturan disimpan", "success");
+  });
+}
+</script>
+</body>
+</html>
