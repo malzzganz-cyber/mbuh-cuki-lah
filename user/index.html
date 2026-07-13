@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Malzz Chat</title>
+<link rel="manifest" href="./manifest.json" />
+<meta name="theme-color" content="#6c5ce7" />
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body data-page="home">
+<div class="app-shell">
+  <div class="topbar glass">
+    <div class="brand"><div class="logo">M</div><h1>Malzz Chat</h1></div>
+    <div style="flex:1"></div>
+    <button class="icon-btn ripple" id="notifBtn" title="Notifikasi">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 8a6 6 0 10-12 0c0 4-2 5-2 7h16c0-2-2-3-2-7"/><path d="M9.5 21a2.5 2.5 0 005 0"/></svg>
+      <span class="badge-dot hidden" id="notifDot"></span>
+    </button>
+    <button class="icon-btn ripple" id="newChatBtn" title="Chat / Grup Baru">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </div>
+
+  <div class="content">
+    <div class="search-bar">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+      <input type="text" id="searchInput" placeholder="Cari user, chat, atau pesan..." />
+    </div>
+    <div id="searchResults" class="hidden"></div>
+
+    <div id="mainSections">
+      <div class="section-title"><h2>Story</h2></div>
+      <div class="stories-row" id="storiesRow">
+        <div class="skeleton" style="width:64px;height:64px;border-radius:50%;"></div>
+        <div class="skeleton" style="width:64px;height:64px;border-radius:50%;"></div>
+      </div>
+
+      <div class="section-title"><h2>Sedang Online</h2></div>
+      <div class="online-row" id="onlineRow"></div>
+
+      <div class="section-title"><h2>Grup Kamu</h2><a href="#" id="createGroupLink">+ Buat</a></div>
+      <div class="chat-list" id="groupList"></div>
+
+      <div class="section-title"><h2>Chat Terbaru</h2></div>
+      <div class="chat-list" id="chatList">
+        <div class="skeleton" style="height:70px;margin-bottom:8px;"></div>
+        <div class="skeleton" style="height:70px;margin-bottom:8px;"></div>
+        <div class="skeleton" style="height:70px;"></div>
+      </div>
+    </div>
+
+    <div id="notifSection" class="hidden">
+      <div class="section-title"><h2>Notifikasi</h2></div>
+      <div id="notifList" class="chat-list"></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { requireAuth, avatarOrFallback, fmtTime, fmtLastSeen, renderBottomNav, initMessaging,
+  db, collection, query, where, orderBy, limit, onSnapshot, getDocs, doc, getDoc,
+  ensurePrivateChat, listenNotifications, openSheet, toast, registerServiceWorker, setDoc, serverTimestamp, addDoc, uploadMedia } from "./app.js";
+
+registerServiceWorker();
+const { user, profile } = await requireAuth();
+renderBottomNav("home");
+initMessaging(user.uid);
+
+if (location.hash === "#notif") showNotifSection();
+if (location.hash === "#groups") document.getElementById("groupList").scrollIntoView({ behavior: "smooth" });
+
+// -------- STORIES --------
+const storiesRow = document.getElementById("storiesRow");
+function renderStories(docs) {
+  storiesRow.innerHTML = `
+    <div class="story-item add" id="addStory">
+      <div class="story-ring"><span>+</span></div>
+      <span>Story Kamu</span>
+    </div>
+  ` + docs.map((s) => `
+    <div class="story-item" data-id="${s.id}">
+      <div class="story-ring ${(s.viewers || []).includes(user.uid) ? "seen" : ""}">
+        <img src="${avatarOrFallback(s.authorPhoto, s.authorName)}" />
+      </div>
+      <span>${s.authorName || "User"}</span>
+    </div>
+  `).join("");
+  document.getElementById("addStory").addEventListener("click", createStory);
+}
+
+async function createStory() {
+  const input = document.createElement("input");
+  input.type = "file"; input.accept = "image/*,video/*";
+  input.onchange = async () => {
+    const file = input.files[0];
+    if (!file) return;
+    toast("Mengunggah story...");
+    try {
+      const url = await uploadMedia(file, "stories", user.uid);
+      await addDoc(collection(db, "stories"), {
+        uid: user.uid, authorName: profile?.name, authorPhoto: profile?.photoURL || "",
+        mediaURL: url, type: file.type.startsWith("video") ? "video" : "image",
+        caption: "", createdAt: serverTimestamp(),
+        expiresAt: new Date(Date.now() + 24 * 3600 * 1000),
+        viewers: [], hidden: false,
+      });
+      toast("Story diunggah!", "success");
+    } catch (e) { toast("Gagal mengunggah story.", "error"); }
+  };
+  input.click();
+}
+
+onSnapshot(query(collection(db, "stories"), where("hidden", "==", false), orderBy("createdAt", "desc"), limit(20)), (snap) => {
+  renderStories(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+});
+
+// -------- ONLINE FRIENDS --------
+onSnapshot(query(collection(db, "users"), where("online", "==", true), limit(20)), (snap) => {
+  const others = snap.docs.filter((d) => d.id !== user.uid);
+  const row = document.getElementById("onlineRow");
+  if (!others.length) { row.innerHTML = '<span class="small">Belum ada teman online</span>'; return; }
+  row.innerHTML = others.map((d) => {
+    const u = d.data();
+    return `<div class="online-item" data-uid="${d.id}">
+      <div class="avatar-wrap"><img src="${avatarOrFallback(u.photoURL, u.name)}" /><span class="dot-online"></span></div>
+      <span>${(u.name || "").split(" ")[0]}</span>
+    </div>`;
+  }).join("");
+  row.querySelectorAll(".online-item").forEach((el) => {
+    el.addEventListener("click", async () => {
+      const chatId = await ensurePrivateChat(user.uid, el.dataset.uid);
+      window.location.href = `./chat.html?type=private&id=${chatId}&peer=${el.dataset.uid}`;
+    });
+  });
+});
+
+// -------- RECENT CHATS --------
+onSnapshot(query(collection(db, "privateChats"), where("members", "array-contains", user.uid), orderBy("lastMessageAt", "desc")), async (snap) => {
+  const list = document.getElementById("chatList");
+  if (snap.empty) { list.innerHTML = '<div class="empty-state"><div class="ic">💬</div>Belum ada chat. Cari teman untuk mulai mengobrol!</div>'; return; }
+  const rows = await Promise.all(snap.docs.map(async (d) => {
+    const chat = d.data();
+    const otherUid = chat.members.find((m) => m !== user.uid);
+    const otherSnap = await getDoc(doc(db, "users", otherUid));
+    const other = otherSnap.exists() ? otherSnap.data() : { name: "Pengguna" };
+    const unread = (chat.unread && chat.unread[user.uid]) || 0;
+    return `<div class="chat-row ripple" data-chat="${d.id}" data-peer="${otherUid}">
+      <div class="avatar-wrap"><img src="${avatarOrFallback(other.photoURL, other.name)}" />${other.online ? '<span class="dot-online"></span>' : ""}</div>
+      <div class="meta">
+        <div class="top"><span class="name">${other.name || "Pengguna"}</span><span class="time">${fmtTime(chat.lastMessageAt)}</span></div>
+        <div class="flex-between"><span class="preview">${chat.lastMessage || "Mulai mengobrol"}</span>${unread > 0 ? `<span class="unread-pill">${unread}</span>` : ""}</div>
+      </div>
+    </div>`;
+  }));
+  list.innerHTML = rows.join("");
+  list.querySelectorAll(".chat-row").forEach((el) => {
+    el.addEventListener("click", () => {
+      window.location.href = `./chat.html?type=private&id=${el.dataset.chat}&peer=${el.dataset.peer}`;
+    });
+  });
+});
+
+// -------- GROUPS --------
+onSnapshot(query(collection(db, "groups"), where("members", "array-contains", user.uid)), (snap) => {
+  const list = document.getElementById("groupList");
+  if (snap.empty) { list.innerHTML = '<div class="small" style="padding:8px 4px;">Kamu belum bergabung dengan grup manapun.</div>'; return; }
+  list.innerHTML = snap.docs.map((d) => {
+    const g = d.data();
+    return `<div class="chat-row ripple" data-group="${d.id}">
+      <div class="avatar-wrap"><img src="${avatarOrFallback(g.photoURL, g.name)}" /></div>
+      <div class="meta"><div class="top"><span class="name">${g.name}</span></div><div class="preview">${(g.members || []).length} anggota</div></div>
+    </div>`;
+  }).join("");
+  list.querySelectorAll("[data-group]").forEach((el) => {
+    el.addEventListener("click", () => window.location.href = `./chat.html?type=group&id=${el.dataset.group}`);
+  });
+});
+document.getElementById("createGroupLink").addEventListener("click", (e) => { e.preventDefault(); openCreateGroup(); });
+
+function openCreateGroup() {
+  const overlay = openSheet(`
+    <h3 style="margin-top:0;">Buat Grup Baru</h3>
+    <div class="field"><label>Nama Grup</label><input id="gName" placeholder="Nama grup" /></div>
+    <div class="field"><label>Deskripsi</label><input id="gDesc" placeholder="Opsional" /></div>
+    <button class="btn ripple" id="gCreateBtn">Buat Grup</button>
+  `, { center: true });
+  overlay.querySelector("#gCreateBtn").addEventListener("click", async () => {
+    const name = overlay.querySelector("#gName").value.trim();
+    if (!name) return toast("Nama grup wajib diisi", "error");
+    const ref = await addDoc(collection(db, "groups"), {
+      name, description: overlay.querySelector("#gDesc").value.trim(),
+      photoURL: "", members: [user.uid], admins: [user.uid], moderators: [],
+      mutedMembers: [], inviteCode: Math.random().toString(36).slice(2, 9),
+      pinnedMessageId: null, closed: false, createdAt: serverTimestamp(), createdBy: user.uid,
+    });
+    toast("Grup dibuat!", "success");
+    overlay.remove();
+    window.location.href = `./chat.html?type=group&id=${ref.id}`;
+  });
+}
+
+// -------- NEW CHAT (search users) --------
+document.getElementById("newChatBtn").addEventListener("click", () => document.getElementById("searchInput").focus());
+
+const searchInput = document.getElementById("searchInput");
+const searchResults = document.getElementById("searchResults");
+const mainSections = document.getElementById("mainSections");
+let searchTimer;
+searchInput.addEventListener("input", () => {
+  clearTimeout(searchTimer);
+  const term = searchInput.value.trim().toLowerCase();
+  if (!term) { searchResults.classList.add("hidden"); mainSections.classList.remove("hidden"); return; }
+  searchTimer = setTimeout(async () => runSearch(term), 350);
+});
+
+async function runSearch(term) {
+  mainSections.classList.add("hidden");
+  searchResults.classList.remove("hidden");
+  searchResults.innerHTML = '<div class="skeleton" style="height:60px;margin-bottom:8px;"></div>';
+  const usersSnap = await getDocs(query(collection(db, "users"), orderBy("username")));
+  const matches = usersSnap.docs.filter((d) => {
+    const u = d.data();
+    return d.id !== user.uid && ((u.username || "").toLowerCase().includes(term) || (u.name || "").toLowerCase().includes(term));
+  }).slice(0, 15);
+  if (!matches.length) { searchResults.innerHTML = '<div class="empty-state">Tidak ada hasil untuk "' + term + '"</div>'; return; }
+  searchResults.innerHTML = `<div class="section-title"><h2>Hasil Pencarian</h2></div>` + matches.map((d) => {
+    const u = d.data();
+    return `<div class="chat-row ripple" data-uid="${d.id}">
+      <div class="avatar-wrap"><img src="${avatarOrFallback(u.photoURL, u.name)}" /></div>
+      <div class="meta"><div class="name">${u.name}</div><div class="small">@${u.username}</div></div>
+    </div>`;
+  }).join("");
+  searchResults.querySelectorAll("[data-uid]").forEach((el) => {
+    el.addEventListener("click", async () => {
+      const chatId = await ensurePrivateChat(user.uid, el.dataset.uid);
+      window.location.href = `./chat.html?type=private&id=${chatId}&peer=${el.dataset.uid}`;
+    });
+  });
+}
+
+// -------- NOTIFICATIONS --------
+function showNotifSection() {
+  mainSections.classList.add("hidden");
+  document.getElementById("notifSection").classList.remove("hidden");
+}
+document.getElementById("notifBtn").addEventListener("click", showNotifSection);
+
+listenNotifications(user.uid, (items) => {
+  document.getElementById("notifDot").classList.toggle("hidden", !items.some((i) => !i.read));
+  const list = document.getElementById("notifList");
+  if (!items.length) { list.innerHTML = '<div class="empty-state"><div class="ic">🔔</div>Belum ada notifikasi</div>'; return; }
+  list.innerHTML = items.map((n) => `
+    <div class="chat-row" style="cursor:default;">
+      <div class="avatar-wrap"><div class="logo" style="width:44px;height:44px;font-size:16px;">M</div></div>
+      <div class="meta"><div class="name">${n.title}</div><div class="preview">${n.body}</div></div>
+    </div>`).join("");
+});
+</script>
+</body>
+</html>
