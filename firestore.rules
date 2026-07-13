@@ -1,0 +1,138 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- helpers ----------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function uid() {
+      return request.auth.uid;
+    }
+    function userDoc(id) {
+      return get(/databases/$(database)/documents/users/$(id)).data;
+    }
+    function myRole() {
+      return isSignedIn() ? userDoc(uid()).role : 'guest';
+    }
+    function isAdmin() {
+      return isSignedIn() && myRole() == 'admin';
+    }
+    function isModerator() {
+      return isSignedIn() && (myRole() == 'moderator' || isAdmin());
+    }
+    function isBanned() {
+      return isSignedIn() && userDoc(uid()).banned == true;
+    }
+    function notBannedField(before, after) {
+      // regular users may never touch role or banned fields
+      return before.role == after.role &&
+             before.banned == after.banned &&
+             before.banReason == after.banReason &&
+             before.banExpiresAt == after.banExpiresAt &&
+             before.banPermanent == after.banPermanent &&
+             before.verified == after.verified;
+    }
+
+    // ---------- users ----------
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && uid() == userId &&
+                       request.resource.data.role == 'user' &&
+                       request.resource.data.banned == false;
+      allow update: if isSignedIn() && !isBanned() &&
+                       (
+                         (uid() == userId && notBannedField(resource.data, request.resource.data)) ||
+                         isModerator()
+                       );
+      allow delete: if isAdmin();
+    }
+
+    // ---------- private chats ----------
+    match /privateChats/{chatId} {
+      allow read, update: if isSignedIn() && !isBanned() && uid() in resource.data.members;
+      allow create: if isSignedIn() && !isBanned() && uid() in request.resource.data.members;
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && uid() in get(/databases/$(database)/documents/privateChats/$(chatId)).data.members;
+        allow create: if isSignedIn() && !isBanned() &&
+                          uid() in get(/databases/$(database)/documents/privateChats/$(chatId)).data.members &&
+                          request.resource.data.senderId == uid();
+        allow update: if isSignedIn() &&
+                          uid() in get(/databases/$(database)/documents/privateChats/$(chatId)).data.members;
+        allow delete: if isSignedIn() &&
+                          (resource.data.senderId == uid() || isModerator());
+      }
+    }
+
+    // ---------- groups ----------
+    match /groups/{groupId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && !isBanned();
+      allow update: if isSignedIn() && !isBanned() &&
+                        (uid() in resource.data.admins || isModerator());
+      allow delete: if isModerator();
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn();
+        allow create: if isSignedIn() && !isBanned() && request.resource.data.senderId == uid();
+        allow update: if isSignedIn();
+        allow delete: if isSignedIn() &&
+                          (resource.data.senderId == uid() || isModerator());
+      }
+    }
+
+    // ---------- stories ----------
+    match /stories/{storyId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && !isBanned() && request.resource.data.uid == uid();
+      allow update: if isSignedIn() && (resource.data.uid == uid() || isModerator());
+      allow delete: if isSignedIn() && (resource.data.uid == uid() || isModerator());
+    }
+
+    // ---------- notifications (per user) ----------
+    match /notifications/{userId}/items/{itemId} {
+      allow read, update, delete: if isSignedIn() && uid() == userId;
+      allow create: if isSignedIn();
+    }
+
+    // ---------- broadcasts ----------
+    match /broadcasts/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---------- reports ----------
+    match /reports/{id} {
+      allow create: if isSignedIn() && !isBanned();
+      allow read, update, delete: if isModerator();
+    }
+
+    // ---------- logs (admin only) ----------
+    match /logs/{id} {
+      allow read: if isAdmin();
+      allow create: if isModerator();
+      allow update, delete: if false;
+    }
+
+    // ---------- settings ----------
+    match /settings/{id} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ---------- admins list ----------
+    match /admins/{id} {
+      allow read: if isSignedIn();
+      allow write: if isAdmin();
+    }
+
+    // ---------- dailyStats (analytics) ----------
+    match /dailyStats/{id} {
+      allow read: if isModerator();
+      allow write: if isSignedIn();
+    }
+  }
+}
