@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Akun Dibanned — Malzz Chat</title>
+<link rel="stylesheet" href="./style.css" />
+</head>
+<body data-page="banned">
+<div class="banned-shell">
+  <div class="banned-card scale-in">
+    <div class="banned-icon">⛔</div>
+    <h1>AKUN DIBANNED</h1>
+    <p class="small">Akun kamu telah dibatasi oleh Admin Malzz Chat.</p>
+    <div style="margin-top:16px;">
+      <div class="banned-row"><span>Nama</span><strong id="bName">-</strong></div>
+      <div class="banned-row"><span>Alasan</span><strong id="bReason">-</strong></div>
+      <div class="banned-row"><span>Tanggal Ban</span><strong id="bDate">-</strong></div>
+      <div class="banned-row"><span>Berakhir</span><strong id="bExpire">-</strong></div>
+    </div>
+    <div id="permTag"></div>
+    <a href="./login.html" class="btn outline ripple mt-8" style="margin-top:20px;">Kembali ke Login</a>
+  </div>
+</div>
+<script type="module">
+const raw = sessionStorage.getItem("malzz-ban-info");
+const info = raw ? JSON.parse(raw) : null;
+if (info) {
+  document.getElementById("bName").textContent = info.name || "-";
+  document.getElementById("bReason").textContent = info.banReason || "-";
+  document.getElementById("bDate").textContent = new Date(info.banAt).toLocaleString("id-ID");
+  document.getElementById("bExpire").textContent = info.banPermanent
+    ? "Tidak berakhir"
+    : (info.banExpiresAt ? new Date(info.banExpiresAt).toLocaleString("id-ID") : "-");
+  if (info.banPermanent) {
+    document.getElementById("permTag").innerHTML = '<span class="permanent-tag">PERMANENT BAN</span>';
+  }
+}
+</script>
+</body>
+</html>
